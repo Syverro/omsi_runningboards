@@ -1,1371 +1,873 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OMSI 2 Fleet Operations & Running Board Builder</title>
-
+  <title>Operations & Running Board Builder</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            slate: {
-              750: '#1e293b',
-              850: '#0f172a',
-              950: '#020617'
-            }
-          }
-        }
-      }
-    }
-  </script>
-
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Dexie.js (IndexedDB wrapper) -->
-  <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
-  <!-- html2pdf.js for A4 PDF Exports -->
+  <!-- html2pdf.js for PDF Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
   <style>
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #475569; }
-
     @media print {
+      body * { visibility: hidden; }
+      #printable-board, #printable-board * { visibility: visible; }
+      #printable-board { position: absolute; left: 0; top: 0; width: 100%; }
       .no-print { display: none !important; }
-      body { background: white !important; color: black !important; }
-      .print-area { 
-        display: block !important; 
-        width: 100% !important; 
-        margin: 0 !important; 
-        padding: 0 !important; 
-        background: white !important;
-        color: black !important;
-      }
-      .print-card { 
-        border: 1px solid #ccc !important; 
-        box-shadow: none !important; 
-        color: black !important; 
-        background: white !important; 
-        page-break-inside: avoid; 
-      }
-      th, td { border-color: #cbd5e1 !important; color: black !important; }
     }
   </style>
 </head>
-<body class="h-full flex flex-col font-sans antialiased bg-slate-950 text-slate-100 selection:bg-sky-500 selection:text-white">
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col antialiased justify-between">
 
-  <!-- AUTHENTICATION GUARD MODAL -->
-  <div id="authModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md transition-opacity">
-    <div class="w-full max-w-md p-8 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl space-y-6">
+  <!-- LOGIN GUARD MODAL -->
+  <div id="login-modal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 p-6 md:p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
+      
       <div class="text-center space-y-2">
-        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20 mb-2">
+        <div class="inline-flex p-3 bg-blue-600/10 text-blue-500 rounded-xl mb-2">
           <i data-lucide="shield-check" class="w-8 h-8"></i>
         </div>
-        <h2 class="text-2xl font-bold tracking-tight text-white">Operations Portal</h2>
-        <p class="text-xs text-slate-400">Sign in to access Running Board Builder</p>
+        <h1 class="text-xl font-bold text-white tracking-wide">Planner Access Portal</h1>
+        <p class="text-xs text-slate-400">Enter matching username and password to log in.</p>
       </div>
 
-      <div id="authErrorMsg" class="hidden p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-xl text-center font-medium">
-        Invalid credentials. Username and password must match.
-      </div>
-
-      <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+      <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
         <div>
-          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Planner Username</label>
-          <div class="relative">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
-              <i data-lucide="user" class="w-4 h-4"></i>
-            </span>
-            <input type="text" id="authUsername" required placeholder="e.g. planner1" 
-              class="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-sky-500 text-slate-100 placeholder-slate-600">
-          </div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Planner Username</label>
+          <input type="text" id="login-user" required placeholder="e.g. Planner1" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Password</label>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Password</label>
           <div class="relative">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
-              <i data-lucide="lock" class="w-4 h-4"></i>
-            </span>
-            <input type="password" id="authPassword" required placeholder="Must match username" 
-              class="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-sky-500 text-slate-100 placeholder-slate-600">
-            <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-500 hover:text-slate-300">
-              <i data-lucide="eye" id="passToggleIcon" class="w-4 h-4"></i>
+            <input type="password" id="login-pass" required placeholder="Must match username" class="w-full bg-slate-950 border border-slate-700 rounded-lg pl-3 pr-10 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+            <button type="button" onclick="togglePassVisibility()" class="absolute right-3 top-2.5 text-slate-400 hover:text-white" title="Toggle password visibility">
+              <i data-lucide="eye" id="pass-toggle-icon" class="w-4 h-4"></i>
             </button>
           </div>
         </div>
 
-        <div class="pt-2">
-          <button type="submit" class="w-full py-3 px-4 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-semibold text-sm rounded-xl transition-all shadow-lg shadow-sky-600/20 flex items-center justify-center gap-2">
-            <span>Access System</span>
-            <i data-lucide="arrow-right" class="w-4 h-4"></i>
-          </button>
+        <div id="login-error" class="hidden text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-lg text-center font-medium">
+          Invalid credentials. Password must match your username.
         </div>
+
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2">
+          <i data-lucide="log-in" class="w-4 h-4"></i>
+          Access System
+        </button>
       </form>
-      <p class="text-xs text-center text-slate-500">Case-insensitive matching (`username === password`).</p>
+
     </div>
   </div>
 
-  <!-- HEADER NAVBAR -->
-  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 no-print">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="p-2 bg-sky-500/10 text-sky-400 rounded-xl border border-sky-500/20">
-          <i data-lucide="bus" class="w-6 h-6"></i>
+  <!-- MAIN APP CONTAINER -->
+  <div id="app-container" class="hidden flex-col min-h-screen flex-1">
+    
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-3">
+          <i data-lucide="bus" class="w-6 h-6 text-blue-500"></i>
+          <h1 class="text-lg font-bold text-white tracking-wide">Fleet Operations & Running Boards</h1>
         </div>
-        <div>
-          <h1 class="font-bold text-slate-100 text-base leading-tight">OMSI 2 Operations & Dispatch</h1>
-          <p class="text-xs text-slate-400">Running Board & Timetable System</p>
-        </div>
+
+        <!-- View Switcher Tabs -->
+        <nav class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+          <button id="nav-main" onclick="switchView('main')" class="px-4 py-1.5 rounded-lg text-blue-400 bg-slate-900 border border-slate-700 transition">
+            Running Board Builder
+          </button>
+          <button id="nav-backend" onclick="switchView('backend')" class="px-4 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition">
+            Map & Timetable Management
+          </button>
+        </nav>
       </div>
 
-      <!-- MAIN APP TABS & USER STATUS -->
-      <div id="userHeaderProfile" class="hidden flex items-center gap-4">
-        <!-- TOP LEVEL NAVIGATION SWITCHER -->
-        <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center gap-1">
-          <button id="navBtnBuilder" onclick="switchMainSection('builder')" class="px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-sky-600 text-white shadow-md flex items-center gap-2">
-            <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i>
-            <span>Running Board Builder</span>
-          </button>
-          <button id="navBtnBackend" onclick="switchMainSection('backend')" class="px-3.5 py-1.5 text-xs font-bold text-slate-400 hover:text-slate-200 rounded-lg transition-all flex items-center gap-2">
-            <i data-lucide="database" class="w-3.5 h-3.5"></i>
-            <span>Map & Timetable Management</span>
-          </button>
-        </div>
-
-        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-800/60 border border-slate-700/50 rounded-xl text-xs">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span class="text-slate-400">Planner:</span>
-          <span id="activeUserDisplay" class="font-semibold text-slate-200"></span>
-        </div>
-
-        <button onclick="handleLogout()" class="px-3 py-1.5 bg-slate-800 hover:bg-rose-500/10 hover:text-rose-400 text-slate-400 border border-slate-700 rounded-xl text-xs font-medium transition-all" title="Log Out">
+      <div class="flex items-center gap-4 text-xs">
+        <span id="paddle-planner-tag" class="bg-slate-800 text-slate-300 px-3 py-1.5 rounded-full border border-slate-700 font-mono">Planner: ---</span>
+        <button onclick="handleLogout()" class="bg-slate-800 hover:bg-rose-600/20 hover:text-rose-400 text-slate-300 p-2 rounded-lg transition border border-slate-700" title="Log Out">
           <i data-lucide="log-out" class="w-4 h-4"></i>
         </button>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <!-- MAIN WORKSPACE -->
-  <main id="appMainContent" class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-
-    <!-- ========================================================================= -->
-    <!-- SECTION 1: RUNNING BOARD BUILDER (MAIN DASHBOARD) -->
-    <!-- ========================================================================= -->
-    <div id="sectionBuilder" class="space-y-6">
-
-      <!-- TOP CONTROL SUB-BAR -->
-      <div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between bg-slate-900 p-2 rounded-2xl border border-slate-800 no-print">
-        <nav class="flex gap-1 overflow-x-auto p-1">
-          <button id="subTabBtnBoards" onclick="switchBuilderSubTab('boards')" class="px-4 py-2 text-xs font-semibold rounded-xl transition-all bg-slate-800 text-sky-400 border border-slate-700">
-            <i data-lucide="layers" class="w-3.5 h-3.5 inline mr-1.5"></i>Active Running Boards (<span id="runningBoardBadge">0</span>)
-          </button>
-          <button id="subTabBtnPrint" onclick="switchBuilderSubTab('print')" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-all">
-            <i data-lucide="printer" class="w-3.5 h-3.5 inline mr-1.5"></i>Official Running Board Sheet
-          </button>
-        </nav>
-
-        <div class="flex items-center gap-2 px-1">
-          <button onclick="openManualTripModal()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 hover:border-sky-500/50 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5">
-            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
-            <span>Add Manual Trip</span>
-          </button>
-          <button onclick="createNewRunningBoard()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/20 transition-all flex items-center gap-1.5">
-            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-            <span>New Running Board</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- SUB-VIEW 1: ACTIVE BOARDS & CASCADING TRIP SELECTOR -->
-      <div id="builderSubViewBoards" class="space-y-6">
-        
-        <!-- CASCADING TRIP SELECTOR PANEL -->
-        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-4 no-print">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                <i data-lucide="filter" class="w-4 h-4 text-sky-400"></i>
-                <span>Add Timetable Trip to Running Board</span>
-              </h3>
-              <p class="text-xs text-slate-400">Select map, route, and direction to add pre-scheduled trips</p>
-            </div>
-            <span id="mapAvailabilityNotice" class="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg"></span>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
-            <!-- 1. Map -->
-            <div>
-              <label class="block text-slate-400 font-medium mb-1">1. Select Map</label>
-              <select id="cascadeMap" onchange="onCascadeMapChange()" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-sky-500">
-                <option value="">-- Choose Map --</option>
-              </select>
-            </div>
-
-            <!-- 2. Route -->
-            <div>
-              <label class="block text-slate-400 font-medium mb-1">2. Select Route</label>
-              <select id="cascadeRoute" onchange="onCascadeRouteChange()" disabled class="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-50">
-                <option value="">-- Choose Route --</option>
-              </select>
-            </div>
-
-            <!-- 3. Direction -->
-            <div>
-              <label class="block text-slate-400 font-medium mb-1">3. Select Direction</label>
-              <select id="cascadeDirection" onchange="onCascadeDirectionChange()" disabled class="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-50">
-                <option value="">-- Choose Direction --</option>
-              </select>
-            </div>
-
-            <!-- 4. Departure Time -->
-            <div>
-              <label class="block text-slate-400 font-medium mb-1">4. Select Departure</label>
-              <select id="cascadeTrip" disabled class="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-50">
-                <option value="">-- Choose Departure --</option>
-              </select>
-            </div>
-
-            <!-- 5. Target Running Board -->
-            <div>
-              <label class="block text-slate-400 font-medium mb-1">5. Target Running Board</label>
-              <div class="flex gap-2">
-                <select id="cascadeTargetBoard" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-sky-500">
-                  <!-- Populated dynamically -->
-                </select>
-                <button onclick="addCascadedTripToBoard()" class="px-3 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl shadow-md transition-all" title="Add Trip">
-                  <i data-lucide="plus" class="w-4 h-4"></i>
-                </button>
-              </div>
-            </div>
+    <!-- VIEW 1: MAIN DISPATCH SCREEN -->
+    <main id="view-main" class="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+      
+      <!-- Duty Header Setup & Selector -->
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="sliders" class="w-5 h-5 text-blue-500"></i> Running Board Configuration
+          </h2>
+          <div class="flex gap-2">
+            <button onclick="openManualTripModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700 transition flex items-center gap-1.5">
+              <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-400"></i> Add Manual Trip
+            </button>
+            <button onclick="openDeadrunModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700 transition flex items-center gap-1.5">
+              <i data-lucide="navigation" class="w-4 h-4 text-amber-400"></i> Add Deadrun
+            </button>
           </div>
         </div>
 
-        <!-- RUNNING BOARDS CARDS GRID -->
-        <div id="runningBoardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <!-- Rendered dynamically -->
-        </div>
-      </div>
-
-      <!-- SUB-VIEW 2: PRINTABLE RUNNING BOARD SHEET -->
-      <div id="builderSubViewPrint" class="hidden space-y-6">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
           <div>
-            <h2 class="text-lg font-bold text-white">Official Running Board Paddle</h2>
-            <p class="text-xs text-slate-400">Simplified driver schedule (Origin, Destination, Departure & Arrival Times)</p>
+            <label class="block font-semibold text-slate-400 uppercase mb-1">Duty / Running Board #</label>
+            <input type="text" id="duty-no" value="Duty 101" oninput="updateRunningBoardHeader()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
           </div>
-
-          <div class="flex items-center gap-3">
-            <select id="printBoardSelector" onchange="renderRunningBoardPrintSheet()" class="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 font-medium focus:outline-none focus:border-sky-500">
-              <!-- Options populated dynamically -->
+          <div>
+            <label class="block font-semibold text-slate-400 uppercase mb-1">Depot Name</label>
+            <input type="text" id="duty-depot" value="Main Depot" oninput="updateRunningBoardHeader()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-400 uppercase mb-1">Vehicle Model / Class</label>
+            <input type="text" id="duty-bus" value="Standard Town Bus" oninput="updateRunningBoardHeader()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-400 uppercase mb-1">Active Map</label>
+            <select id="select-map" onchange="handleMapSelection()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+              <option value="">Select Map...</option>
             </select>
+          </div>
+        </div>
 
-            <button onclick="downloadPDF()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2">
-              <i data-lucide="file-down" class="w-4 h-4"></i>
-              <span>Export A4 PDF</span>
+        <!-- Cascading Timetable Selector -->
+        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Add Pre-Scheduled Trip from Timetable</span>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+            <div>
+              <label class="block text-slate-500 mb-1">Route</label>
+              <select id="select-route" onchange="handleRouteSelection()" disabled class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white disabled:opacity-50">
+                <option value="">Select Route...</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-500 mb-1">Direction / Destination</label>
+              <select id="select-direction" onchange="handleDirectionSelection()" disabled class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white disabled:opacity-50">
+                <option value="">Select Direction...</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-500 mb-1">Departure Time</label>
+              <select id="select-trip" disabled class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-white disabled:opacity-50">
+                <option value="">Select Trip Departure...</option>
+              </select>
+            </div>
+            <div class="flex items-end">
+              <button onclick="addSelectedScheduledTrip()" id="btn-add-scheduled" disabled class="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium py-2 rounded-lg transition flex items-center justify-center gap-1.5">
+                <i data-lucide="plus" class="w-4 h-4"></i> Add to Board
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Running Board View -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4 no-print">
+          <div>
+            <h3 class="text-lg font-bold text-white">Driver Running Board Preview</h3>
+            <p class="text-xs text-slate-400">Sequential trip list for active shift assignment.</p>
+          </div>
+          <div class="flex gap-3">
+            <button onclick="clearCurrentBoard()" class="bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-400 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700 transition">
+              Clear Board
             </button>
-
-            <button onclick="window.print()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs rounded-xl transition-all flex items-center gap-2">
-              <i data-lucide="printer" class="w-4 h-4"></i>
-              <span>Print</span>
+            <button onclick="exportToPDF()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold shadow-lg shadow-blue-600/20 transition flex items-center gap-2">
+              <i data-lucide="file-down" class="w-4 h-4"></i> Download PDF
             </button>
           </div>
         </div>
 
-        <!-- RUNNING BOARD DOCUMENT SHEET -->
-        <div id="runningBoardPrintArea" class="print-area bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl space-y-6 text-slate-100">
+        <!-- Printable Running Board Content -->
+        <div id="printable-board" class="bg-slate-950 border border-slate-800 rounded-xl p-6 space-y-6 text-slate-100">
           
-          <!-- Header Information -->
-          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-700 pb-4 gap-4">
+          <!-- Board Header -->
+          <div class="border-b-2 border-slate-700 pb-4 flex justify-between items-start">
             <div>
-              <div class="text-xs font-bold uppercase tracking-widest text-sky-400">Official Bus Driver Running Board</div>
-              <h2 id="boardTitleDisplay" class="text-2xl font-extrabold text-white">Running Board: --</h2>
-              <p id="boardPlannerMeta" class="text-xs text-slate-400 mt-1">Planner: -- | Generated: --</p>
+              <h2 id="board-display-duty" class="text-2xl font-black tracking-wider uppercase text-white">DUTY 101</h2>
+              <p id="board-display-depot" class="text-xs font-medium text-slate-400">Depot: Main Depot</p>
+              <p id="board-display-bus" class="text-xs font-medium text-slate-400">Vehicle: Standard Town Bus</p>
             </div>
             <div class="text-right">
-              <div class="text-xs text-slate-400">Total Duty Shift Duration</div>
-              <div id="boardShiftDuration" class="text-lg font-bold text-emerald-400">00h 00m</div>
+              <span id="board-display-planner" class="text-xs font-mono bg-slate-800 text-slate-300 px-3 py-1 rounded border border-slate-700">Planner: ---</span>
+              <p id="board-display-count" class="text-xs text-slate-400 mt-2">Total Activities: 0</p>
             </div>
           </div>
 
-          <!-- Running Board Sequential Table -->
+          <!-- Running Board Table -->
           <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse text-xs">
+            <table class="w-full text-left text-xs border-collapse">
               <thead>
-                <tr class="bg-slate-800 text-slate-300 font-bold uppercase border-b-2 border-slate-600">
-                  <th class="p-3 w-12 text-center">Seq #</th>
-                  <th class="p-3">Activity</th>
-                  <th class="p-3">Route / Line</th>
-                  <th class="p-3">Origin Terminal</th>
-                  <th class="p-3">Destination Terminal</th>
-                  <th class="p-3">Dep. Time</th>
-                  <th class="p-3">Arr. Time</th>
-                  <th class="p-3">Layover</th>
-                  <th class="p-3">Driver Notes</th>
+                <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
+                  <th class="py-2 px-3">#</th>
+                  <th class="py-2 px-3">Activity / Route</th>
+                  <th class="py-2 px-3">Origin</th>
+                  <th class="py-2 px-3">Destination</th>
+                  <th class="py-2 px-3">Dep. Time</th>
+                  <th class="py-2 px-3">Arr. Time</th>
+                  <th class="py-2 px-3">Notes</th>
+                  <th class="py-2 px-3 text-right no-print">Actions</th>
                 </tr>
               </thead>
-              <tbody id="boardTableBody" class="divide-y divide-slate-800">
-                <!-- Populated dynamically -->
+              <tbody id="board-table-body" class="divide-y divide-slate-800/50">
+                <tr>
+                  <td colspan="8" class="py-8 text-center text-slate-500 italic">No trips added to this running board yet. Select from timetable above or add manually.</td>
+                </tr>
               </tbody>
             </table>
           </div>
 
-          <div class="pt-4 border-t border-slate-800 text-center text-xs text-slate-500">
-            End of Duty Instructions: Report vehicle handovers and any route delays to dispatch prior to booking off.
-          </div>
         </div>
       </div>
 
-    </div>
+    </main>
 
-    <!-- ========================================================================= -->
-    <!-- SECTION 2: MAP & TIMETABLE MANAGEMENT (BACKEND SCREEN) -->
-    <!-- ========================================================================= -->
-    <div id="sectionBackend" class="hidden space-y-6">
-
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-1">
-        <div class="flex items-center gap-2 text-sky-400 font-bold text-sm">
-          <i data-lucide="database" class="w-5 h-5"></i>
-          <span>Backend Dispatch Admin Center</span>
-        </div>
-        <h2 class="text-xl font-bold text-white">Map Profiles & TTData Timetable Management</h2>
-        <p class="text-xs text-slate-400">Upload `.ttp`, `.ttr`, `.ttl` files, assign maps, or use bulk importer auto-assignment.</p>
+    <!-- VIEW 2: BACKEND MAP & TIMETABLE MANAGEMENT -->
+    <main id="view-backend" class="hidden flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+      
+      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-2">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <i data-lucide="database" class="w-6 h-6 text-blue-500"></i> Backend Map & Timetable Database
+        </h2>
+        <p class="text-xs text-slate-400">Manage available maps, create route structures, or bulk import OMSI native `.ttl` files.</p>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         
-        <!-- STEP 1: CREATE MAP / DEPOT PROFILE -->
+        <!-- STEP 1: CREATE MAP PROFILE -->
         <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-          <div class="border-b border-slate-800 pb-3">
-            <h3 class="text-base font-bold text-white flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-sky-500/10 text-sky-400 text-xs flex items-center justify-center font-bold">1</span>
-              <span>Create Map / Depot Profile</span>
-            </h3>
-            <p class="text-xs text-slate-400 mt-0.5">Define map bases for running board assignment</p>
-          </div>
-
-          <form id="createMapForm" onsubmit="handleCreateMap(event)" class="space-y-3 text-xs">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="map-pin" class="w-5 h-5 text-emerald-400"></i> Step 1: Add New Map Profile
+          </h3>
+          <form onsubmit="handleCreateMap(event)" class="space-y-3 text-xs">
             <div>
-              <label class="block text-slate-400 font-medium mb-1">Map Name</label>
-              <input type="text" id="mapNameInput" required placeholder="e.g. Berlin Spandau" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+              <label class="block font-semibold text-slate-400 mb-1">Map Name</label>
+              <input type="text" id="new-map-name" required placeholder="e.g. Spandau 1994 or Adstow Bay" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
             </div>
             <div>
-              <label class="block text-slate-400 font-medium mb-1">Depot / Base Name</label>
-              <input type="text" id="depotNameInput" required placeholder="e.g. Spandau Main Garage" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+              <label class="block font-semibold text-slate-400 mb-1">Depot / Base Terminal</label>
+              <input type="text" id="new-map-depot" placeholder="e.g. Spandau Main Depot" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
             </div>
-            <div>
-              <label class="block text-slate-400 font-medium mb-1">Associated HOF File Ref (Optional)</label>
-              <input type="text" id="hofRefInput" placeholder="e.g. Spandau_92.hof" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
-            </div>
-
-            <button type="submit" class="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">
-              <i data-lucide="plus-circle" class="w-4 h-4"></i>
-              <span>Save Map Profile</span>
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 rounded-lg transition flex items-center justify-center gap-1.5">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i> Create Map Profile
             </button>
           </form>
         </div>
 
-        <!-- STEP 2: ADD SINGLE TTDATA FILE -->
+        <!-- STEP 2: BULK TTL FILE IMPORTER -->
         <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-          <div class="border-b border-slate-800 pb-3">
-            <h3 class="text-base font-bold text-white flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-sky-500/10 text-sky-400 text-xs flex items-center justify-center font-bold">2</span>
-              <span>Add Single TTData / Route Schedule</span>
-            </h3>
-            <p class="text-xs text-slate-400 mt-0.5">Upload .ttp, .ttr, or JSON schedules for a specific map</p>
-          </div>
-
-          <form id="singleTTForm" onsubmit="handleSingleTTUpload(event)" class="space-y-3 text-xs">
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="file-up" class="w-5 h-5 text-blue-500"></i> Step 2: Bulk TTL / Schedule Upload
+          </h3>
+          <p class="text-xs text-slate-400">Select target map, then upload native OMSI `.ttl` files directly[cite: 1]. Tours, trips, and departure times will be extracted automatically[cite: 1].</p>
+          
+          <div class="space-y-3 text-xs">
             <div>
-              <label class="block text-slate-400 font-medium mb-1">Target Map</label>
-              <select id="singleTTMapSelect" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
-                <!-- Options populated dynamically -->
+              <label class="block font-semibold text-slate-400 mb-1">Assign to Map</label>
+              <select id="backend-target-map" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+                <option value="">Select Map First...</option>
               </select>
             </div>
 
-            <div>
-              <label class="block text-slate-400 font-medium mb-1">Route / Line Name</label>
-              <input type="text" id="singleTTRouteName" required placeholder="e.g. Line 92" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+            <div class="border-2 border-dashed border-slate-700 hover:border-blue-500/50 rounded-xl p-6 text-center transition cursor-pointer bg-slate-950/50" onclick="document.getElementById('ttl-file-input').click()">
+              <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-500 mx-auto mb-2"></i>
+              <p class="text-xs text-slate-300 font-medium">Click to select or drop <code>.ttl</code> files</p>
+              <p class="text-[10px] text-slate-500 mt-1">Accepts native OMSI `.ttl` timetable files[cite: 1]. Filename sets route number (e.g. <code>99.ttl</code>[cite: 1]).</p>
+              <input type="file" id="ttl-file-input" multiple accept=".ttl,.txt,.json" class="hidden" onchange="handleBulkTTLImport(event)">
             </div>
 
-            <div>
-              <label class="block text-slate-400 font-medium mb-1">Select TTData File (.json, .ttp, .txt)</label>
-              <input type="file" id="singleTTFileInput" required accept=".json,.txt,.ttp,.ttr" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs">
-            </div>
-
-            <button type="submit" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 font-semibold rounded-xl transition-all flex items-center justify-center gap-2">
-              <i data-lucide="upload" class="w-4 h-4"></i>
-              <span>Upload & Bind Schedule</span>
-            </button>
-          </form>
+            <div id="import-log" class="hidden text-xs bg-slate-950 border border-slate-800 p-3 rounded-lg max-h-40 overflow-y-auto font-mono space-y-1"></div>
+          </div>
         </div>
 
       </div>
 
-      <!-- BULK TTDATA IMPORTER BOX -->
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-        <div>
-          <h3 class="text-base font-bold text-white flex items-center gap-2">
-            <i data-lucide="folder-up" class="w-5 h-5 text-sky-400"></i>
-            <span>Bulk TTData Auto-Route Importer</span>
-          </h3>
-          <p class="text-xs text-slate-400 mt-0.5">Select or drop multiple timetable files. Route names are auto-assigned based on filenames (e.g. <code>Route 101.json</code>).</p>
-        </div>
-
-        <div class="border-2 border-dashed border-slate-700 hover:border-sky-500/50 rounded-2xl p-6 text-center transition cursor-pointer bg-slate-950/50" onclick="document.getElementById('bulkTTInput').click()">
-          <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-500 mx-auto mb-2"></i>
-          <p class="text-xs text-slate-300 font-medium">Click to select or drag & drop bulk <code>ttdata</code> files</p>
-          <p class="text-[10px] text-slate-500 mt-1">Accepts multiple .json files. Automatically parses route names from filenames.</p>
-          <input type="file" id="bulkTTInput" multiple accept=".json,.txt" class="hidden" onchange="handleBulkTTImport(event)">
-        </div>
-
-        <div id="bulkImportLog" class="hidden text-xs bg-slate-950 border border-slate-800 p-3 rounded-xl max-h-40 overflow-y-auto font-mono space-y-1"></div>
-      </div>
-
-      <!-- SAVED MAPS & TIMETABLES DATABASE TABLE -->
+      <!-- STORED MAPS & ROUTES DATABASE TABLE -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div>
-            <h3 class="text-base font-bold text-white">Saved Maps & Timetable Store</h3>
-            <p class="text-xs text-slate-400">Stored in IndexedDB / LocalStorage</p>
-          </div>
-          <button onclick="clearAllBackendData()" class="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5">
-            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-            <span>Clear Database</span>
-          </button>
-        </div>
-
-        <div id="backendMapsList" class="space-y-4">
-          <!-- Rendered dynamically -->
+        <h3 class="text-base font-bold text-white">Stored Maps & Routes Database</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
+                <th class="py-2 px-3">Map Name</th>
+                <th class="py-2 px-3">Depot</th>
+                <th class="py-2 px-3">Routes Defined</th>
+                <th class="py-2 px-3">Total Scheduled Trips</th>
+                <th class="py-2 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="database-table-body" class="divide-y divide-slate-800/50">
+              <tr>
+                <td colspan="5" class="py-6 text-center text-slate-500">No maps created yet. Use Step 1 above.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-    </div>
+    </main>
 
-  </main>
-
-  <!-- MODAL 1: MANUAL TRIP ENTRY -->
-  <div id="manualTripModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-    <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <i data-lucide="edit-3" class="w-5 h-5 text-sky-400"></i>
-          <span>Manual Trip Entry</span>
-        </h3>
-        <button onclick="closeManualTripModal()" class="text-slate-500 hover:text-slate-300">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
+    <!-- FOOTER WITH VERSION & BRANDING -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-4 px-6 mt-auto text-xs text-slate-400 flex flex-col md:flex-row items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="font-semibold text-slate-200">Operations Management System</span>
+        <span class="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded border border-slate-700 font-mono">v2.4.0</span>
       </div>
+      <div>
+        &copy; 2026 Operations Management System. All rights reserved.
+      </div>
+      <div class="text-slate-500">
+        Powered by <span class="font-semibold text-slate-300">Syverro Group Software</span>
+      </div>
+    </footer>
+  </div>
 
-      <form id="manualTripForm" onsubmit="saveManualTrip(event)" class="space-y-4 text-xs">
+  <!-- MODAL: MANUAL TRIP ENTRY -->
+  <div id="modal-manual-trip" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-4">
+      <h3 class="text-base font-bold text-white flex items-center gap-2">
+        <i data-lucide="plus-circle" class="w-5 h-5 text-emerald-400"></i> Add Manual Revenue Trip
+      </h3>
+      <form onsubmit="saveManualTrip(event)" class="space-y-3 text-xs">
         <div>
-          <label class="block text-slate-400 font-semibold mb-1">Route / Line Name</label>
-          <input type="text" id="mTripLine" required placeholder="e.g. Line 92 Inbound" 
-            class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+          <label class="block font-semibold text-slate-400 mb-1">Route / Line Name</label>
+          <input type="text" id="manual-route" required placeholder="e.g. Route 99" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
         </div>
-
+        <div>
+          <label class="block font-semibold text-slate-400 mb-1">Origin Terminal</label>
+          <input type="text" id="manual-origin" required placeholder="e.g. Adstow Ferry" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-400 mb-1">Destination Terminal</label>
+          <input type="text" id="manual-destination" required placeholder="e.g. Adstow Bay" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
+        </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-slate-400 font-semibold mb-1">Origin Terminal</label>
-            <input type="text" id="mTripOrigin" required placeholder="e.g. Freudstraße" 
-              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+            <label class="block font-semibold text-slate-400 mb-1">Departure Time</label>
+            <input type="time" id="manual-deptime" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
           </div>
           <div>
-            <label class="block text-slate-400 font-semibold mb-1">Destination Terminal</label>
-            <input type="text" id="mTripDestination" required placeholder="e.g. Stadtlebenstedt" 
-              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+            <label class="block font-semibold text-slate-400 mb-1">Arrival Time</label>
+            <input type="time" id="manual-arrtime" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
           </div>
         </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">Departure Time (HH:MM)</label>
-            <input type="time" id="mTripDepTime" required 
-              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
-          </div>
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">Arrival Time (HH:MM)</label>
-            <input type="time" id="mTripArrTime" required 
-              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
-          </div>
-        </div>
-
         <div>
-          <label class="block text-slate-400 font-semibold mb-1">Trip Notes</label>
-          <input type="text" id="mTripNotes" placeholder="e.g. Peak Express Service" 
-            class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+          <label class="block font-semibold text-slate-400 mb-1">Driver Notes (Optional)</label>
+          <input type="text" id="manual-notes" placeholder="e.g. Connects with Ferry" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
         </div>
-
-        <div>
-          <label class="block text-slate-400 font-semibold mb-1">Assign Directly to Running Board</label>
-          <select id="mTripAssignBoard" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
-            <!-- Populated dynamically -->
-          </select>
-        </div>
-
-        <div class="pt-2 flex items-center justify-end gap-3">
-          <button type="button" onclick="closeManualTripModal()" class="px-4 py-2 bg-slate-800 text-slate-300 font-semibold rounded-xl hover:bg-slate-700">Cancel</button>
-          <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl shadow-lg">Save Trip</button>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('modal-manual-trip')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg font-medium">Cancel</button>
+          <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2 rounded-lg">Add to Board</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- MODAL 2: DEADRUN POSITIONING BUILDER -->
-  <div id="deadrunModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-    <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <i data-lucide="truck" class="w-5 h-5 text-amber-400"></i>
-          <span>Add Deadrun / Garage Move</span>
-        </h3>
-        <button onclick="closeDeadrunModal()" class="text-slate-500 hover:text-slate-300">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-
-      <form id="deadrunForm" onsubmit="saveDeadrun(event)" class="space-y-4 text-xs">
-        <input type="hidden" id="drBoardId">
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">Origin Location</label>
-            <input type="text" id="drOrigin" required placeholder="e.g. Main Depot" 
-              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
-          </div>
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">Destination Location</label>
-            <input type="text" id="drDestination" required placeholder="e.g. Freudstraße Terminal" 
-              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">Start Time</label>
-            <input type="time" id="drStartTime" required 
-              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
-          </div>
-          <div>
-            <label class="block text-slate-400 font-semibold mb-1">End Time</label>
-            <input type="time" id="drEndTime" required 
-              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
-          </div>
-        </div>
-
-        <!-- Quick Adjustment Controls -->
-        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
-          <div class="text-[11px] font-semibold text-slate-400">Quick Time Shift (End Time):</div>
-          <div class="flex items-center gap-2">
-            <button type="button" onclick="adjustDeadrunTime(-10)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">-10m</button>
-            <button type="button" onclick="adjustDeadrunTime(-5)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">-5m</button>
-            <button type="button" onclick="adjustDeadrunTime(-1)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">-1m</button>
-            <span class="text-slate-600 font-bold">|</span>
-            <button type="button" onclick="adjustDeadrunTime(1)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">+1m</button>
-            <button type="button" onclick="adjustDeadrunTime(5)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">+5m</button>
-            <button type="button" onclick="adjustDeadrunTime(10)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">+10m</button>
-          </div>
-        </div>
-
+  <!-- MODAL: DEADRUN ENTRY -->
+  <div id="modal-deadrun" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-4">
+      <h3 class="text-base font-bold text-white flex items-center gap-2">
+        <i data-lucide="navigation" class="w-5 h-5 text-amber-400"></i> Add Deadrun / Positioning
+      </h3>
+      <form onsubmit="saveDeadrun(event)" class="space-y-3 text-xs">
         <div>
-          <label class="block text-slate-400 font-semibold mb-1">Notes / Driver Instructions</label>
-          <input type="text" id="drNotes" placeholder="e.g. Out of Service Run-out" 
-            class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+          <label class="block font-semibold text-slate-400 mb-1">Positioning Move Title</label>
+          <input type="text" id="deadrun-title" required value="Deadrun to Terminal" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
         </div>
-
-        <div class="pt-2 flex items-center justify-end gap-3">
-          <button type="button" onclick="closeDeadrunModal()" class="px-4 py-2 bg-slate-800 text-slate-300 font-semibold rounded-xl hover:bg-slate-700">Cancel</button>
-          <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-xl shadow-lg">Insert Deadrun</button>
+        <div>
+          <label class="block font-semibold text-slate-400 mb-1">Origin</label>
+          <input type="text" id="deadrun-origin" required placeholder="e.g. Depot" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-400 mb-1">Destination</label>
+          <input type="text" id="deadrun-destination" required placeholder="e.g. Adstow Ferry" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-400 mb-1">Departure Time</label>
+            <input type="time" id="deadrun-deptime" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-400 mb-1">Arrival Time</label>
+            <input type="time" id="deadrun-arrtime" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white">
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-400 mb-1">Quick Time Adjust</label>
+          <div class="flex gap-2">
+            <button type="button" onclick="adjustDeadrunTime(-5)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 py-1 rounded font-mono">-5m</button>
+            <button type="button" onclick="adjustDeadrunTime(-1)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 py-1 rounded font-mono">-1m</button>
+            <button type="button" onclick="adjustDeadrunTime(1)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 py-1 rounded font-mono">+1m</button>
+            <button type="button" onclick="adjustDeadrunTime(5)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 py-1 rounded font-mono">+5m</button>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('modal-deadrun')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg font-medium">Cancel</button>
+          <button type="submit" class="bg-amber-600 hover:bg-amber-500 text-white font-medium px-4 py-2 rounded-lg">Add Deadrun</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- FOOTER -->
-  <footer class="bg-slate-900 border-t border-slate-800 py-4 no-print mt-auto">
-    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500 font-mono">
-      v2.4.0 • © 2026 Operations Management System • Syverro Group Software
-    </div>
-  </footer>
-
+  <!-- SYSTEM JAVASCRIPT & TTL PARSER -->
   <script>
-    /* GLOBAL APP STATE & PERSISTENCE KEY */
-    const STORAGE_KEY = 'OMSI2_SYSTEM_DATA_V240';
+    let currentUser = null;
+    let mapsStore = {};
+    let activeRunningBoard = [];
 
-    let state = {
-      activePlanner: null,
-      runningBoards: [],
-      maps: [] // array of { id, name, depot, hof, routes: [ { id, name, directions: [ { name, trips: [ { depTime, arrTime, origin, destination } ] } ] } ] }
-    };
-
-    /* INITIALIZATION */
-    window.onload = function() {
+    // Initialize application on load
+    window.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
-      loadState();
-      checkAuthGuard();
-      if (state.maps.length === 0) {
-        seedDefaultMapData();
+      
+      const savedUser = localStorage.getItem('rb_planner_user');
+      if (savedUser) loginUser(savedUser);
+
+      const savedMaps = localStorage.getItem('rb_maps_store');
+      if (savedMaps) {
+        try { mapsStore = JSON.parse(savedMaps); } catch(e) { mapsStore = {}; }
       }
-    };
 
-    function saveState() {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch(e) {
-        console.error("Save state failed:", e);
-      }
-    }
+      refreshMapDropdowns();
+      renderDatabaseTable();
+    });
 
-    function loadState() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          state = JSON.parse(raw);
-        }
-      } catch(e) {
-        console.error("Load state failed:", e);
-      }
-    }
-
-    function seedDefaultMapData() {
-      state.maps = [
-        {
-          id: 'map_spandau',
-          name: 'Berlin Spandau',
-          depot: 'Spandau Garage',
-          hof: 'Spandau_92.hof',
-          routes: [
-            {
-              id: 'rt_92',
-              name: 'Line 92',
-              directions: [
-                {
-                  name: 'Inbound (Freudstraße -> Stadtlebenstedt)',
-                  trips: [
-                    { origin: 'Freudstraße', destination: 'Stadtlebenstedt', depTime: '06:15', arrTime: '06:48', notes: 'Morning Peak' },
-                    { origin: 'Freudstraße', destination: 'Stadtlebenstedt', depTime: '07:15', arrTime: '07:48', notes: 'Morning Peak' }
-                  ]
-                },
-                {
-                  name: 'Outbound (Stadtlebenstedt -> Freudstraße)',
-                  trips: [
-                    { origin: 'Stadtlebenstedt', destination: 'Freudstraße', depTime: '07:00', arrTime: '07:33', notes: 'Morning Return' },
-                    { origin: 'Stadtlebenstedt', destination: 'Freudstraße', depTime: '08:00', arrTime: '08:33', notes: 'Regular Service' }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ];
-
-      if (state.runningBoards.length === 0) {
-        state.runningBoards = [
-          {
-            id: 'rb_101',
-            code: 'Running Board 101',
-            items: [
-              { id: 'dr_1', type: 'Deadrun', line: 'Depot Run-out', origin: 'Spandau Garage', destination: 'Freudstraße', depTime: '05:50', arrTime: '06:05', notes: 'Out of service positioning' },
-              { id: 'tr_1', type: 'Revenue', line: 'Line 92', origin: 'Freudstraße', destination: 'Stadtlebenstedt', depTime: '06:15', arrTime: '06:48', notes: 'Morning Peak' }
-            ]
-          }
-        ];
-      }
-      saveState();
-      renderAll();
-    }
-
-    /* AUTHENTICATION GUARD */
-    function checkAuthGuard() {
-      const authModal = document.getElementById('authModal');
-      const userProfile = document.getElementById('userHeaderProfile');
-      const activeUserDisplay = document.getElementById('activeUserDisplay');
-
-      if (state.activePlanner) {
-        authModal.classList.add('hidden');
-        userProfile.classList.remove('hidden');
-        activeUserDisplay.textContent = state.activePlanner;
-        renderAll();
-      } else {
-        authModal.classList.remove('hidden');
-        userProfile.classList.add('hidden');
-      }
-    }
-
+    // Login Guard
     function handleLogin(e) {
       e.preventDefault();
-      const u = document.getElementById('authUsername').value.trim();
-      const p = document.getElementById('authPassword').value.trim();
-      const errorMsg = document.getElementById('authErrorMsg');
+      const userEl = document.getElementById('login-user');
+      const passEl = document.getElementById('login-pass');
+      
+      const rawUser = userEl ? userEl.value.trim() : '';
+      const rawPass = passEl ? passEl.value.trim() : '';
 
-      if (u && u.toLowerCase() === p.toLowerCase()) {
-        state.activePlanner = u;
-        errorMsg.classList.add('hidden');
-        saveState();
-        checkAuthGuard();
+      if (rawUser && rawUser.toLowerCase() === rawPass.toLowerCase()) {
+        document.getElementById('login-error').classList.add('hidden');
+        loginUser(rawUser);
       } else {
-        errorMsg.classList.remove('hidden');
+        document.getElementById('login-error').classList.remove('hidden');
       }
     }
 
-    function togglePasswordVisibility() {
-      const pInput = document.getElementById('authPassword');
-      if (pInput.type === 'password') {
-        pInput.type = 'text';
-      } else {
-        pInput.type = 'password';
-      }
+    function loginUser(username) {
+      currentUser = username;
+      localStorage.setItem('rb_planner_user', username);
+
+      document.getElementById('login-modal').classList.add('hidden');
+      const app = document.getElementById('app-container');
+      app.classList.remove('hidden');
+      app.classList.add('flex');
+
+      document.getElementById('paddle-planner-tag').innerText = `Planner: ${username}`;
+      document.getElementById('board-display-planner').innerText = `Planner: ${username}`;
     }
 
     function handleLogout() {
-      state.activePlanner = null;
-      saveState();
-      checkAuthGuard();
+      localStorage.removeItem('rb_planner_user');
+      currentUser = null;
+      document.getElementById('app-container').classList.add('hidden');
+      document.getElementById('login-modal').classList.remove('hidden');
     }
 
-    /* NAVIGATION SWITCHING */
-    function switchMainSection(section) {
-      const builder = document.getElementById('sectionBuilder');
-      const backend = document.getElementById('sectionBackend');
-      const navBtnBuilder = document.getElementById('navBtnBuilder');
-      const navBtnBackend = document.getElementById('navBtnBackend');
-
-      if (section === 'builder') {
-        builder.classList.remove('hidden');
-        backend.classList.add('hidden');
-        navBtnBuilder.className = "px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-sky-600 text-white shadow-md flex items-center gap-2";
-        navBtnBackend.className = "px-3.5 py-1.5 text-xs font-bold text-slate-400 hover:text-slate-200 rounded-lg transition-all flex items-center gap-2";
+    function togglePassVisibility() {
+      const passInput = document.getElementById('login-pass');
+      const icon = document.getElementById('pass-toggle-icon');
+      if (passInput.type === 'password') {
+        passInput.type = 'text';
+        icon.setAttribute('data-lucide', 'eye-off');
       } else {
-        builder.classList.add('hidden');
-        backend.classList.remove('hidden');
-        navBtnBackend.className = "px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-sky-600 text-white shadow-md flex items-center gap-2";
-        navBtnBuilder.className = "px-3.5 py-1.5 text-xs font-bold text-slate-400 hover:text-slate-200 rounded-lg transition-all flex items-center gap-2";
-        renderBackendView();
+        passInput.type = 'password';
+        icon.setAttribute('data-lucide', 'eye');
       }
       lucide.createIcons();
     }
 
-    function switchBuilderSubTab(tab) {
-      const subBoards = document.getElementById('builderSubViewBoards');
-      const subPrint = document.getElementById('builderSubViewPrint');
-      const subTabBtnBoards = document.getElementById('subTabBtnBoards');
-      const subTabBtnPrint = document.getElementById('subTabBtnPrint');
+    // View Switching
+    function switchView(view) {
+      const mainView = document.getElementById('view-main');
+      const backendView = document.getElementById('view-backend');
+      const navMain = document.getElementById('nav-main');
+      const navBackend = document.getElementById('nav-backend');
 
-      if (tab === 'boards') {
-        subBoards.classList.remove('hidden');
-        subPrint.classList.add('hidden');
-        subTabBtnBoards.className = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all bg-slate-800 text-sky-400 border border-slate-700';
-        subTabBtnPrint.className = 'px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-all';
+      if (view === 'main') {
+        mainView.classList.remove('hidden');
+        backendView.classList.add('hidden');
+        navMain.className = "px-4 py-1.5 rounded-lg text-blue-400 bg-slate-900 border border-slate-700 transition";
+        navBackend.className = "px-4 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition";
       } else {
-        subBoards.classList.add('hidden');
-        subPrint.classList.remove('hidden');
-        subTabBtnPrint.className = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all bg-slate-800 text-sky-400 border border-slate-700';
-        subTabBtnBoards.className = 'px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-all';
-        renderRunningBoardPrintSheet();
-      }
-      lucide.createIcons();
-    }
-
-    /* RENDER ALL COMPONENTS */
-    function renderAll() {
-      renderRunningBoardGrid();
-      populateCascadingMapDropdown();
-      populateBoardDropdowns();
-      updateBadges();
-      lucide.createIcons();
-    }
-
-    function updateBadges() {
-      document.getElementById('runningBoardBadge').textContent = state.runningBoards.length;
-    }
-
-    /* RUNNING BOARD BUILDER LOGIC */
-    function createNewRunningBoard() {
-      const num = state.runningBoards.length + 1;
-      const newBoard = {
-        id: 'rb_' + Date.now(),
-        code: 'Running Board ' + (100 + num),
-        items: []
-      };
-      state.runningBoards.push(newBoard);
-      saveState();
-      renderAll();
-    }
-
-    function deleteRunningBoard(id) {
-      state.runningBoards = state.runningBoards.filter(b => b.id !== id);
-      saveState();
-      renderAll();
-    }
-
-    function renderRunningBoardGrid() {
-      const container = document.getElementById('runningBoardsGrid');
-      container.innerHTML = '';
-
-      if (state.runningBoards.length === 0) {
-        container.innerHTML = `
-          <div class="col-span-full p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl text-slate-500">
-            <i data-lucide="clipboard-list" class="w-8 h-8 mx-auto mb-2 text-slate-600"></i>
-            <p class="text-xs">No active running boards. Click "New Running Board" to start scheduling.</p>
-          </div>
-        `;
-        return;
-      }
-
-      state.runningBoards.forEach(board => {
-        const card = document.createElement('div');
-        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl flex flex-col justify-between';
-
-        let itemsHTML = '';
-        if (board.items.length === 0) {
-          itemsHTML = `<p class="text-xs text-slate-500 italic p-2">No trips assigned yet.</p>`;
-        } else {
-          itemsHTML = board.items.map((item, idx) => {
-            const isDeadrun = item.type === 'Deadrun';
-            return `
-              <div class="p-2.5 ${isDeadrun ? 'bg-amber-500/10 border-amber-500/20' : 'bg-slate-950 border-slate-800'} border rounded-xl flex items-center justify-between text-xs">
-                <div class="space-y-0.5">
-                  <div class="flex items-center gap-2">
-                    <span class="font-bold ${isDeadrun ? 'text-amber-400' : 'text-sky-400'}">${item.line || 'Trip'}</span>
-                    <span class="text-[10px] text-slate-500 font-mono">${item.depTime} &rarr; ${item.arrTime}</span>
-                  </div>
-                  <div class="text-[11px] text-slate-300 font-medium">${item.origin} &rarr; ${item.destination}</div>
-                </div>
-                <button onclick="removeItemFromBoard('${board.id}', ${idx})" class="text-slate-500 hover:text-rose-400 p-1">
-                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                </button>
-              </div>
-            `;
-          }).join('');
-        }
-
-        card.innerHTML = `
-          <div class="space-y-3">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
-              <div class="flex items-center gap-2">
-                <i data-lucide="bus" class="w-4 h-4 text-sky-400"></i>
-                <h3 class="font-bold text-white text-sm">${board.code}</h3>
-              </div>
-              <button onclick="deleteRunningBoard('${board.id}')" class="text-slate-500 hover:text-rose-400 text-xs">
-                <i data-lucide="trash" class="w-3.5 h-3.5"></i>
-              </button>
-            </div>
-
-            <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
-              ${itemsHTML}
-            </div>
-          </div>
-
-          <div class="pt-3 border-t border-slate-800 flex items-center gap-2">
-            <button onclick="openDeadrunModal('${board.id}')" class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5">
-              <i data-lucide="truck" class="w-3.5 h-3.5"></i>
-              <span>+ Deadrun</span>
-            </button>
-            <button onclick="selectBoardForPrint('${board.id}')" class="py-1.5 px-3 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-xl transition-all" title="View Board Sheet">
-              <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-            </button>
-          </div>
-        `;
-        container.appendChild(card);
-      });
-      lucide.createIcons();
-    }
-
-    function removeItemFromBoard(boardId, index) {
-      const board = state.runningBoards.find(b => b.id === boardId);
-      if (board) {
-        board.items.splice(index, 1);
-        saveState();
-        renderAll();
+        mainView.classList.add('hidden');
+        backendView.classList.remove('hidden');
+        navBackend.className = "px-4 py-1.5 rounded-lg text-blue-400 bg-slate-900 border border-slate-700 transition";
+        navMain.className = "px-4 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition";
       }
     }
 
-    /* CASCADING TIMETABLE SELECTOR */
-    function populateCascadingMapDropdown() {
-      const mapSelect = document.getElementById('cascadeMap');
-      const notice = document.getElementById('mapAvailabilityNotice');
-
-      mapSelect.innerHTML = `<option value="">-- Choose Map --</option>`;
-      state.maps.forEach(m => {
-        mapSelect.innerHTML += `<option value="${m.id}">${m.name} (${m.depot})</option>`;
-      });
-
-      if (state.maps.length === 0) {
-        notice.textContent = "No maps found. Go to Backend to add maps & schedules.";
-      } else {
-        notice.textContent = `${state.maps.length} Map(s) Loaded`;
-      }
-    }
-
-    function onCascadeMapChange() {
-      const mapId = document.getElementById('cascadeMap').value;
-      const routeSelect = document.getElementById('cascadeRoute');
-      const dirSelect = document.getElementById('cascadeDirection');
-      const tripSelect = document.getElementById('cascadeTrip');
-
-      routeSelect.innerHTML = `<option value="">-- Choose Route --</option>`;
-      dirSelect.innerHTML = `<option value="">-- Choose Direction --</option>`;
-      tripSelect.innerHTML = `<option value="">-- Choose Departure --</option>`;
-
-      dirSelect.disabled = true;
-      tripSelect.disabled = true;
-
-      const map = state.maps.find(m => m.id === mapId);
-      if (map && map.routes) {
-        routeSelect.disabled = false;
-        map.routes.forEach(r => {
-          routeSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
-        });
-      } else {
-        routeSelect.disabled = true;
-      }
-    }
-
-    function onCascadeRouteChange() {
-      const mapId = document.getElementById('cascadeMap').value;
-      const routeId = document.getElementById('cascadeRoute').value;
-      const dirSelect = document.getElementById('cascadeDirection');
-      const tripSelect = document.getElementById('cascadeTrip');
-
-      dirSelect.innerHTML = `<option value="">-- Choose Direction --</option>`;
-      tripSelect.innerHTML = `<option value="">-- Choose Departure --</option>`;
-      tripSelect.disabled = true;
-
-      const map = state.maps.find(m => m.id === mapId);
-      if (map) {
-        const route = map.routes.find(r => r.id === routeId);
-        if (route && route.directions) {
-          dirSelect.disabled = false;
-          route.directions.forEach((d, idx) => {
-            dirSelect.innerHTML += `<option value="${idx}">${d.name}</option>`;
-          });
-        }
-      }
-    }
-
-    function onCascadeDirectionChange() {
-      const mapId = document.getElementById('cascadeMap').value;
-      const routeId = document.getElementById('cascadeRoute').value;
-      const dirIdx = document.getElementById('cascadeDirection').value;
-      const tripSelect = document.getElementById('cascadeTrip');
-
-      tripSelect.innerHTML = `<option value="">-- Choose Departure --</option>`;
-
-      const map = state.maps.find(m => m.id === mapId);
-      if (map) {
-        const route = map.routes.find(r => r.id === routeId);
-        if (route && route.directions[dirIdx]) {
-          tripSelect.disabled = false;
-          route.directions[dirIdx].trips.forEach((t, idx) => {
-            tripSelect.innerHTML += `<option value="${idx}">${t.depTime} (${t.origin} -> ${t.destination})</option>`;
-          });
-        }
-      }
-    }
-
-    function addCascadedTripToBoard() {
-      const mapId = document.getElementById('cascadeMap').value;
-      const routeId = document.getElementById('cascadeRoute').value;
-      const dirIdx = document.getElementById('cascadeDirection').value;
-      const tripIdx = document.getElementById('cascadeTrip').value;
-      const targetBoardId = document.getElementById('cascadeTargetBoard').value;
-
-      if (!targetBoardId) {
-        alert("Please create or select a target Running Board.");
-        return;
-      }
-
-      const map = state.maps.find(m => m.id === mapId);
-      if (!map) return;
-      const route = map.routes.find(r => r.id === routeId);
-      if (!route) return;
-      const dir = route.directions[dirIdx];
-      if (!dir) return;
-      const trip = dir.trips[tripIdx];
-      if (!trip) return;
-
-      const board = state.runningBoards.find(b => b.id === targetBoardId);
-      if (board) {
-        board.items.push({
-          id: 'tr_' + Date.now(),
-          type: 'Revenue',
-          line: route.name,
-          origin: trip.origin,
-          destination: trip.destination,
-          depTime: trip.depTime,
-          arrTime: trip.arrTime,
-          notes: trip.notes || ''
-        });
-        saveState();
-        renderAll();
-      }
-    }
-
-    /* MODAL HANDLERS FOR MANUAL TRIPS AND DEADRUNS */
-    function openManualTripModal() {
-      populateBoardDropdowns();
-      document.getElementById('manualTripModal').classList.remove('hidden');
-    }
-
-    function closeManualTripModal() {
-      document.getElementById('manualTripModal').classList.add('hidden');
-      document.getElementById('manualTripForm').reset();
-    }
-
-    function saveManualTrip(e) {
-      e.preventDefault();
-      const line = document.getElementById('mTripLine').value.trim();
-      const origin = document.getElementById('mTripOrigin').value.trim();
-      const destination = document.getElementById('mTripDestination').value.trim();
-      const depTime = document.getElementById('mTripDepTime').value;
-      const arrTime = document.getElementById('mTripArrTime').value;
-      const notes = document.getElementById('mTripNotes').value.trim();
-      const boardId = document.getElementById('mTripAssignBoard').value;
-
-      if (boardId) {
-        const board = state.runningBoards.find(b => b.id === boardId);
-        if (board) {
-          board.items.push({
-            id: 'tr_' + Date.now(),
-            type: 'Revenue',
-            line, origin, destination, depTime, arrTime, notes
-          });
-          saveState();
-          renderAll();
-        }
-      }
-      closeManualTripModal();
-    }
-
-    function openDeadrunModal(boardId) {
-      document.getElementById('drBoardId').value = boardId;
-      document.getElementById('deadrunModal').classList.remove('hidden');
-    }
-
-    function closeDeadrunModal() {
-      document.getElementById('deadrunModal').classList.add('hidden');
-      document.getElementById('deadrunForm').reset();
-    }
-
-    function adjustDeadrunTime(minutes) {
-      const endTimeInput = document.getElementById('drEndTime');
-      if (!endTimeInput.value) return;
-
-      const [h, m] = endTimeInput.value.split(':').map(Number);
-      let totalMins = h * 60 + m + minutes;
-      if (totalMins < 0) totalMins += 1440;
-      totalMins %= 1440;
-
-      const newH = String(Math.floor(totalMins / 60)).padStart(2, '0');
-      const newM = String(totalMins % 60).padStart(2, '0');
-      endTimeInput.value = `${newH}:${newM}`;
-    }
-
-    function saveDeadrun(e) {
-      e.preventDefault();
-      const boardId = document.getElementById('drBoardId').value;
-      const origin = document.getElementById('drOrigin').value.trim();
-      const destination = document.getElementById('drDestination').value.trim();
-      const depTime = document.getElementById('drStartTime').value;
-      const arrTime = document.getElementById('drEndTime').value;
-      const notes = document.getElementById('drNotes').value.trim() || 'Out of Service Move';
-
-      const board = state.runningBoards.find(b => b.id === boardId);
-      if (board) {
-        board.items.push({
-          id: 'dr_' + Date.now(),
-          type: 'Deadrun',
-          line: 'Deadrun Move',
-          origin, destination, depTime, arrTime, notes
-        });
-        saveState();
-        renderAll();
-      }
-      closeDeadrunModal();
-    }
-
-    function populateBoardDropdowns() {
-      const cascadeTarget = document.getElementById('cascadeTargetBoard');
-      const manualTarget = document.getElementById('mTripAssignBoard');
-      const printTarget = document.getElementById('printBoardSelector');
-
-      cascadeTarget.innerHTML = '';
-      manualTarget.innerHTML = `<option value="">Select Running Board...</option>`;
-      printTarget.innerHTML = '';
-
-      state.runningBoards.forEach(b => {
-        cascadeTarget.innerHTML += `<option value="${b.id}">${b.code}</option>`;
-        manualTarget.innerHTML += `<option value="${b.id}">${b.code}</option>`;
-        printTarget.innerHTML += `<option value="${b.id}">${b.code}</option>`;
-      });
-    }
-
-    /* PRINT & PDF EXPORT FOR RUNNING BOARD PADDLE */
-    function selectBoardForPrint(boardId) {
-      populateBoardDropdowns();
-      document.getElementById('printBoardSelector').value = boardId;
-      switchBuilderSubTab('print');
-    }
-
-    function renderRunningBoardPrintSheet() {
-      const boardId = document.getElementById('printBoardSelector').value;
-      const tbody = document.getElementById('boardTableBody');
-      tbody.innerHTML = '';
-
-      const board = state.runningBoards.find(b => b.id === boardId);
-      if (!board) {
-        document.getElementById('boardTitleDisplay').textContent = 'Running Board: --';
-        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-500">Select a valid running board.</td></tr>`;
-        return;
-      }
-
-      document.getElementById('boardTitleDisplay').textContent = board.code;
-      document.getElementById('boardPlannerMeta').textContent = `Planner: ${state.activePlanner || 'System'} | Generated: ${new Date().toLocaleDateString()}`;
-
-      if (board.items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-500 italic">No scheduled trips on this running board.</td></tr>`;
-        document.getElementById('boardShiftDuration').textContent = '00h 00m';
-        return;
-      }
-
-      // Sort items chronologically
-      board.items.sort((a, b) => a.depTime.localeCompare(b.depTime));
-
-      let totalMinutes = 0;
-      if (board.items.length > 0) {
-        const start = board.items[0].depTime.split(':').map(Number);
-        const end = board.items[board.items.length - 1].arrTime.split(':').map(Number);
-        let diff = (end[0] * 60 + end[1]) - (start[0] * 60 + start[1]);
-        if (diff < 0) diff += 1440;
-        totalMinutes = diff;
-      }
-
-      const h = Math.floor(totalMinutes / 60);
-      const m = totalMinutes % 60;
-      document.getElementById('boardShiftDuration').textContent = `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
-
-      board.items.forEach((item, idx) => {
-        let layoverStr = '-';
-        if (idx < board.items.length - 1) {
-          const arr = item.arrTime.split(':').map(Number);
-          const nextDep = board.items[idx + 1].depTime.split(':').map(Number);
-          let lay = (nextDep[0] * 60 + nextDep[1]) - (arr[0] * 60 + arr[1]);
-          if (lay < 0) lay += 1440;
-          layoverStr = `${lay}m`;
-        }
-
-        const isDeadrun = item.type === 'Deadrun';
-        const tr = document.createElement('tr');
-        tr.className = isDeadrun ? 'bg-amber-500/5 hover:bg-amber-500/10' : 'hover:bg-slate-800/40';
-
-        tr.innerHTML = `
-          <td class="p-3 text-center font-mono font-bold text-slate-400">${idx + 1}</td>
-          <td class="p-3 font-semibold ${isDeadrun ? 'text-amber-400' : 'text-sky-400'}">${item.type}</td>
-          <td class="p-3 font-bold text-white">${item.line}</td>
-          <td class="p-3 font-medium">${item.origin}</td>
-          <td class="p-3 font-medium">${item.destination}</td>
-          <td class="p-3 font-mono font-bold text-slate-200">${item.depTime}</td>
-          <td class="p-3 font-mono font-bold text-slate-200">${item.arrTime}</td>
-          <td class="p-3 font-mono text-emerald-400">${layoverStr}</td>
-          <td class="p-3 text-slate-400 text-[11px]">${item.notes || '-'}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function downloadPDF() {
-      const element = document.getElementById('runningBoardPrintArea');
-      const opt = {
-        margin:       0.5,
-        filename:     'Driver_Running_Board.pdf',
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2 },
-        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-      };
-      html2pdf().set(opt).from(element).save();
-    }
-
-    /* BACKEND SCREEN MANAGEMENT */
-    function renderBackendView() {
-      const mapSelect = document.getElementById('singleTTMapSelect');
-      const listContainer = document.getElementById('backendMapsList');
-
-      mapSelect.innerHTML = '';
-      state.maps.forEach(m => {
-        mapSelect.innerHTML += `<option value="${m.id}">${m.name} (${m.depot})</option>`;
-      });
-
-      listContainer.innerHTML = '';
-      if (state.maps.length === 0) {
-        listContainer.innerHTML = `<p class="text-xs text-slate-500 italic p-4 text-center">No maps created yet in backend database.</p>`;
-        return;
-      }
-
-      state.maps.forEach(m => {
-        let routeListHTML = '';
-        if (!m.routes || m.routes.length === 0) {
-          routeListHTML = `<p class="text-xs text-slate-500 italic">No schedules uploaded for this map.</p>`;
-        } else {
-          routeListHTML = m.routes.map(r => `
-            <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs flex items-center justify-between">
-              <div>
-                <span class="font-bold text-sky-400">${r.name}</span>
-                <span class="text-slate-500 text-[10px] ml-2">(${r.directions ? r.directions.length : 0} Directions)</span>
-              </div>
-            </div>
-          `).join('');
-        }
-
-        const div = document.createElement('div');
-        div.className = 'bg-slate-950/60 border border-slate-800 p-4 rounded-xl space-y-3';
-        div.innerHTML = `
-          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-            <div>
-              <h4 class="font-bold text-white text-sm">${m.name}</h4>
-              <p class="text-xs text-slate-400">Depot Base: ${m.depot} ${m.hof ? '| HOF: ' + m.hof : ''}</p>
-            </div>
-            <button onclick="deleteMap('${m.id}')" class="text-slate-500 hover:text-rose-400 text-xs">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
-          </div>
-          <div class="space-y-1.5">
-            <div class="text-[11px] font-semibold text-slate-400 uppercase">Associated Routes:</div>
-            ${routeListHTML}
-          </div>
-        `;
-        listContainer.appendChild(div);
-      });
-      lucide.createIcons();
-    }
-
+    // Backend Map Creation
     function handleCreateMap(e) {
       e.preventDefault();
-      const name = document.getElementById('mapNameInput').value.trim();
-      const depot = document.getElementById('depotNameInput').value.trim();
-      const hof = document.getElementById('hofRefInput').value.trim();
+      const mapName = document.getElementById('new-map-name').value.trim();
+      const mapDepot = document.getElementById('new-map-depot').value.trim() || 'Depot';
 
-      const newMap = {
-        id: 'map_' + Date.now(),
-        name, depot, hof,
-        routes: []
-      };
+      if (!mapName) return;
 
-      state.maps.push(newMap);
-      saveState();
-      document.getElementById('createMapForm').reset();
-      renderAll();
-      renderBackendView();
+      if (!mapsStore[mapName]) {
+        mapsStore[mapName] = { name: mapName, depot: mapDepot, routes: {} };
+        saveMapsStore();
+        refreshMapDropdowns();
+        renderDatabaseTable();
+        alert(`Map "${mapName}" created successfully!`);
+        e.target.reset();
+      } else {
+        alert('A map with this name already exists.');
+      }
     }
 
-    function handleSingleTTUpload(e) {
-      e.preventDefault();
-      const mapId = document.getElementById('singleTTMapSelect').value;
-      const routeName = document.getElementById('singleTTRouteName').value.trim();
-      const fileInput = document.getElementById('singleTTFileInput');
+    // BULK OMSI TTL FILE PARSER
+    function handleBulkTTLImport(e) {
+      const targetMapName = document.getElementById('backend-target-map').value;
+      if (!targetMapName) {
+        alert('Please select a target map first.');
+        e.target.value = '';
+        return;
+      }
 
-      if (!fileInput.files.length) return;
-
-      const file = fileInput.files[0];
-      const reader = new FileReader();
-
-      reader.onload = (evt) => {
-        try {
-          const parsed = JSON.parse(evt.target.result);
-          const map = state.maps.find(m => m.id === mapId);
-          if (map) {
-            map.routes = map.routes || [];
-            map.routes.push({
-              id: 'rt_' + Date.now(),
-              name: routeName,
-              directions: Array.isArray(parsed) ? [{ name: 'Standard Route', trips: parsed }] : (parsed.directions || [])
-            });
-            saveState();
-            renderAll();
-            renderBackendView();
-            alert(`Schedule bound to ${map.name} under ${routeName}`);
-          }
-        } catch(err) {
-          alert("Uploaded file must be a valid JSON schedule array.");
-        }
-      };
-      reader.readAsText(file);
-    }
-
-    function handleBulkTTImport(e) {
       const files = Array.from(e.target.files);
       if (!files.length) return;
 
-      const logBox = document.getElementById('bulkImportLog');
+      const logBox = document.getElementById('import-log');
       logBox.classList.remove('hidden');
-      logBox.innerHTML = `<div class="text-sky-400 font-semibold">Processing ${files.length} bulk file(s)...</div>`;
+      logBox.innerHTML = `<div class="text-blue-400 font-semibold mb-1">Parsing ${files.length} native OMSI TTL file(s)...</div>`;
 
-      if (state.maps.length === 0) {
-        state.maps.push({
-          id: 'map_default',
-          name: 'Main Transit Map',
-          depot: 'Central Garage',
-          routes: []
-        });
-      }
-
-      const defaultMap = state.maps[0];
+      let processed = 0;
 
       files.forEach(file => {
-        const routeKey = file.name
-          .replace(/\.[^/.]+$/, "")
-          .replace(/_/g, " ")
-          .trim();
-
+        const routeNum = file.name.replace(/\.[^/.]+$/, "").trim(); // e.g. "99" from "99.ttl"
         const reader = new FileReader();
-        reader.onload = (evt) => {
-          try {
-            const data = JSON.parse(evt.target.result);
-            defaultMap.routes.push({
-              id: 'rt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-              name: routeKey,
-              directions: [
-                {
-                  name: 'Standard Run',
-                  trips: Array.isArray(data) ? data : []
-                }
-              ]
-            });
-            saveState();
-            renderAll();
-            renderBackendView();
-            logBox.innerHTML += `<div class="text-emerald-400">✓ Auto-assigned <strong>${file.name}</strong> &rarr; Route: <em>${routeKey}</em></div>`;
-          } catch(err) {
-            logBox.innerHTML += `<div class="text-rose-400">✗ Failed parsing <strong>${file.name}</strong></div>`;
+
+        reader.onload = (event) => {
+          const text = event.target.result;
+          parseNativeTTLText(targetMapName, routeNum, text);
+          processed++;
+          logBox.innerHTML += `<div class="text-emerald-400">✓ Auto-parsed <strong>${file.name}</strong> &rarr; Line ${routeNum}</div>`;
+          
+          if (processed === files.length) {
+            saveMapsStore();
+            refreshMapDropdowns();
+            renderDatabaseTable();
           }
         };
+
         reader.readAsText(file);
       });
     }
 
-    function deleteMap(id) {
-      if (confirm("Delete map and associated timetable schedules?")) {
-        state.maps = state.maps.filter(m => m.id !== id);
-        saveState();
-        renderAll();
-        renderBackendView();
+    function parseNativeTTLText(mapName, routeNum, content) {
+      const lines = content.split(/\r?\n/);
+      let currentDepTime = "";
+      let routeObj = mapsStore[mapName].routes[routeNum] || { name: `Line ${routeNum}`, trips: [] };
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // Extract departure timestamp comments e.g. "Dep.: 6:50:0"
+        if (line.startsWith("Dep.:")) {
+          const parts = line.replace("Dep.:", "").trim().split(":");
+          if (parts.length >= 2) {
+            const h = parts[0].padStart(2, '0');
+            const m = parts[1].padStart(2, '0');
+            currentDepTime = `${h}:${m}`;
+          }
+        }
+
+        // Extract [addtrip] blocks
+        if (line === "[addtrip]" && i + 1 < lines.length) {
+          const tripTitle = lines[i + 1].trim(); // e.g. "99 - Adstow Bay" or "99 Deadrun to Ferry"
+          let isDeadrun = tripTitle.toLowerCase().includes("deadrun") || tripTitle.toLowerCase().includes("depot");
+          
+          let origin = "Terminal";
+          let dest = tripTitle.replace(/^[\d\s-]+/, '').trim();
+
+          if (tripTitle.includes("-")) {
+            const split = tripTitle.split("-");
+            dest = split[1].trim();
+          }
+
+          // Estimate arrival time 20 mins later
+          let arrTime = "00:00";
+          if (currentDepTime) {
+            const [h, m] = currentDepTime.split(':').map(Number);
+            let arrM = m + 20;
+            let arrH = h;
+            if (arrM >= 60) { arrM -= 60; arrH = (arrH + 1) % 24; }
+            arrTime = `${String(arrH).padStart(2,'0')}:${String(arrM).padStart(2,'0')}`;
+          }
+
+          routeObj.trips.push({
+            type: isDeadrun ? 'Deadrun' : 'Revenue',
+            route: `Line ${routeNum}`,
+            origin: isDeadrun ? 'Depot/Terminal' : 'Origin',
+            destination: dest || tripTitle,
+            depTime: currentDepTime || '00:00',
+            arrTime: arrTime,
+            notes: isDeadrun ? 'Positioning move' : 'Regular service'
+          });
+        }
+      }
+
+      mapsStore[mapName].routes[routeNum] = routeObj;
+    }
+
+    // Dropdown Handlers
+    function refreshMapDropdowns() {
+      const selectMap = document.getElementById('select-map');
+      const backendMap = document.getElementById('backend-target-map');
+
+      selectMap.innerHTML = '<option value="">Select Map...</option>';
+      backendMap.innerHTML = '<option value="">Select Map First...</option>';
+
+      Object.keys(mapsStore).forEach(mapName => {
+        selectMap.innerHTML += `<option value="${mapName}">${mapName}</option>`;
+        backendMap.innerHTML += `<option value="${mapName}">${mapName}</option>`;
+      });
+    }
+
+    function handleMapSelection() {
+      const mapName = document.getElementById('select-map').value;
+      const selectRoute = document.getElementById('select-route');
+      
+      selectRoute.innerHTML = '<option value="">Select Route...</option>';
+      document.getElementById('select-direction').innerHTML = '<option value="">Select Direction...</option>';
+      document.getElementById('select-trip').innerHTML = '<option value="">Select Trip Departure...</option>';
+
+      selectRoute.disabled = !mapName;
+      document.getElementById('select-direction').disabled = true;
+      document.getElementById('select-trip').disabled = true;
+      document.getElementById('btn-add-scheduled').disabled = true;
+
+      if (mapName && mapsStore[mapName]) {
+        document.getElementById('duty-depot').value = mapsStore[mapName].depot || 'Main Depot';
+        updateRunningBoardHeader();
+
+        Object.keys(mapsStore[mapName].routes).forEach(rKey => {
+          selectRoute.innerHTML += `<option value="${rKey}">${mapsStore[mapName].routes[rKey].name}</option>`;
+        });
       }
     }
 
-    function clearAllBackendData() {
-      if (confirm("Clear all maps and stored timetables?")) {
-        state.maps = [];
-        state.runningBoards = [];
-        saveState();
-        renderAll();
-        renderBackendView();
+    function handleRouteSelection() {
+      const mapName = document.getElementById('select-map').value;
+      const rKey = document.getElementById('select-route').value;
+      const selectDir = document.getElementById('select-direction');
+
+      selectDir.innerHTML = '<option value="">Select Direction...</option>';
+      selectDir.disabled = !rKey;
+
+      if (mapName && rKey && mapsStore[mapName].routes[rKey]) {
+        const dests = [...new Set(mapsStore[mapName].routes[rKey].trips.map(t => t.destination))];
+        dests.forEach(d => {
+          selectDir.innerHTML += `<option value="${d}">${d}</option>`;
+        });
       }
+    }
+
+    function handleDirectionSelection() {
+      const mapName = document.getElementById('select-map').value;
+      const rKey = document.getElementById('select-route').value;
+      const dest = document.getElementById('select-direction').value;
+      const selectTrip = document.getElementById('select-trip');
+
+      selectTrip.innerHTML = '<option value="">Select Trip Departure...</option>';
+      selectTrip.disabled = !dest;
+
+      if (mapName && rKey && dest && mapsStore[mapName].routes[rKey]) {
+        const matching = mapsStore[mapName].routes[rKey].trips.filter(t => t.destination === dest);
+        matching.forEach((t, idx) => {
+          selectTrip.innerHTML += `<option value="${idx}">${t.depTime} - ${t.origin} &rarr; ${t.destination}</option>`;
+        });
+        document.getElementById('btn-add-scheduled').disabled = false;
+      }
+    }
+
+    function addSelectedScheduledTrip() {
+      const mapName = document.getElementById('select-map').value;
+      const rKey = document.getElementById('select-route').value;
+      const dest = document.getElementById('select-direction').value;
+      const idx = document.getElementById('select-trip').value;
+
+      if (mapName && rKey && dest && idx !== "") {
+        const trip = mapsStore[mapName].routes[rKey].trips.filter(t => t.destination === dest)[idx];
+        if (trip) {
+          activeRunningBoard.push({ ...trip });
+          renderRunningBoardTable();
+        }
+      }
+    }
+
+    // Modal Operations
+    function openManualTripModal() { document.getElementById('modal-manual-trip').classList.remove('hidden'); }
+    function openDeadrunModal() { document.getElementById('modal-deadrun').classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function saveManualTrip(e) {
+      e.preventDefault();
+      activeRunningBoard.push({
+        type: 'Revenue',
+        route: document.getElementById('manual-route').value,
+        origin: document.getElementById('manual-origin').value,
+        destination: document.getElementById('manual-destination').value,
+        depTime: document.getElementById('manual-deptime').value,
+        arrTime: document.getElementById('manual-arrtime').value,
+        notes: document.getElementById('manual-notes').value || 'Manual entry'
+      });
+      renderRunningBoardTable();
+      closeModal('modal-manual-trip');
+      e.target.reset();
+    }
+
+    function saveDeadrun(e) {
+      e.preventDefault();
+      activeRunningBoard.push({
+        type: 'Deadrun',
+        route: document.getElementById('deadrun-title').value,
+        origin: document.getElementById('deadrun-origin').value,
+        destination: document.getElementById('deadrun-destination').value,
+        depTime: document.getElementById('deadrun-deptime').value,
+        arrTime: document.getElementById('deadrun-arrtime').value,
+        notes: 'Out of service'
+      });
+      renderRunningBoardTable();
+      closeModal('modal-deadrun');
+      e.target.reset();
+    }
+
+    function adjustDeadrunTime(mins) {
+      const depEl = document.getElementById('deadrun-deptime');
+      const arrEl = document.getElementById('deadrun-arrtime');
+      if (depEl.value) depEl.value = shiftTime(depEl.value, mins);
+      if (arrEl.value) arrEl.value = shiftTime(arrEl.value, mins);
+    }
+
+    function shiftTime(timeStr, mins) {
+      const [h, m] = timeStr.split(':').map(Number);
+      let date = new Date(2026, 0, 1, h, m + mins);
+      return `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+    }
+
+    // Render Table & Header
+    function updateRunningBoardHeader() {
+      document.getElementById('board-display-duty').innerText = document.getElementById('duty-no').value || 'DUTY ---';
+      document.getElementById('board-display-depot').innerText = `Depot: ${document.getElementById('duty-depot').value}`;
+      document.getElementById('board-display-bus').innerText = `Vehicle: ${document.getElementById('duty-bus').value}`;
+    }
+
+    function renderRunningBoardTable() {
+      const tbody = document.getElementById('board-table-body');
+      tbody.innerHTML = '';
+
+      if (activeRunningBoard.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-500 italic">No trips added to this running board yet. Select from timetable above or add manually.</td></tr>`;
+        document.getElementById('board-display-count').innerText = `Total Activities: 0`;
+        return;
+      }
+
+      activeRunningBoard.sort((a, b) => a.depTime.localeCompare(b.depTime));
+
+      activeRunningBoard.forEach((item, index) => {
+        const isDead = item.type === 'Deadrun';
+        tbody.innerHTML += `
+          <tr class="${isDead ? 'bg-amber-500/5' : 'hover:bg-slate-900/50'}">
+            <td class="py-3 px-3 font-mono text-slate-400">${index + 1}</td>
+            <td class="py-3 px-3 font-semibold ${isDead ? 'text-amber-400' : 'text-blue-400'}">
+              ${isDead ? '<i data-lucide="navigation" class="w-3 h-3 inline mr-1"></i>' : ''} ${item.route}
+            </td>
+            <td class="py-3 px-3">${item.origin}</td>
+            <td class="py-3 px-3">${item.destination}</td>
+            <td class="py-3 px-3 font-mono text-emerald-400 font-bold">${item.depTime}</td>
+            <td class="py-3 px-3 font-mono text-slate-300">${item.arrTime}</td>
+            <td class="py-3 px-3 text-slate-400 text-[11px]">${item.notes || '-'}</td>
+            <td class="py-3 px-3 text-right no-print">
+              <button onclick="removeBoardItem(${index})" class="text-rose-400 hover:text-rose-300 p-1">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+
+      document.getElementById('board-display-count').innerText = `Total Activities: ${activeRunningBoard.length}`;
+      lucide.createIcons();
+    }
+
+    function removeBoardItem(idx) {
+      activeRunningBoard.splice(idx, 1);
+      renderRunningBoardTable();
+    }
+
+    function clearCurrentBoard() {
+      if (confirm('Clear all items from the current running board?')) {
+        activeRunningBoard = [];
+        renderRunningBoardTable();
+      }
+    }
+
+    function renderDatabaseTable() {
+      const tbody = document.getElementById('database-table-body');
+      tbody.innerHTML = '';
+
+      const keys = Object.keys(mapsStore);
+      if (keys.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500">No maps created yet. Use Step 1 above.</td></tr>`;
+        return;
+      }
+
+      keys.forEach(k => {
+        const map = mapsStore[k];
+        const routeCount = Object.keys(map.routes).length;
+        let totalTrips = 0;
+        Object.keys(map.routes).forEach(r => totalTrips += map.routes[r].trips.length);
+
+        tbody.innerHTML += `
+          <tr>
+            <td class="py-3 px-3 font-bold text-white">${map.name}</td>
+            <td class="py-3 px-3 text-slate-400">${map.depot}</td>
+            <td class="py-3 px-3 font-mono text-blue-400">${routeCount} routes</td>
+            <td class="py-3 px-3 font-mono text-emerald-400">${totalTrips} trips</td>
+            <td class="py-3 px-3 text-right">
+              <button onclick="deleteMap('${k}')" class="text-rose-400 hover:text-rose-300 p-1">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+      lucide.createIcons();
+    }
+
+    function deleteMap(name) {
+      if (confirm(`Delete map profile "${name}" and all associated schedules?`)) {
+        delete mapsStore[name];
+        saveMapsStore();
+        refreshMapDropdowns();
+        renderDatabaseTable();
+      }
+    }
+
+    function saveMapsStore() {
+      localStorage.setItem('rb_maps_store', JSON.stringify(mapsStore));
+    }
+
+    // PDF Export
+    function exportToPDF() {
+      const element = document.getElementById('printable-board');
+      const opt = {
+        margin:       0.5,
+        filename:     `${document.getElementById('duty-no').value || 'Running_Board'}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+      html2pdf().set(opt).from(element).save();
     }
   </script>
 </body>
