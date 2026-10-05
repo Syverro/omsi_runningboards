@@ -1,1315 +1,1017 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OMSI 2 Fleet Operations & Duty Builder System</title>
+  <title>OMSI 2 Fleet Operations & Running Board Builder</title>
+  
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- html2pdf.js for PDF Export -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              750: '#1e293b',
+              850: '#0f172a',
+              950: '#020617'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- html2pdf.js for A4 PDF Exports -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <!-- Dexie.js for IndexedDB Persistence -->
-  <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
   
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
-    
-    body {
-      font-family: 'Inter', sans-serif;
-    }
-    .font-mono {
-      font-family: 'JetBrains+Mono', monospace;
-    }
-    
-    /* Print Styles for Duty Cards */
-    @media print {
-      body * {
-        visibility: hidden;
-      }
-      #printable-paddle, #printable-paddle * {
-        visibility: visible;
-      }
-      #printable-paddle {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        background: #ffffff !important;
-        color: #000000 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-      }
-      .no-print {
-        display: none !important;
-      }
-      .print-border {
-        border: 1px solid #000 !important;
-      }
-    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #0f172a;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #334155;
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #475569;
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; color: black !important; }
+      .print-area { 
+        display: block !important; 
+        width: 100% !important; 
+        margin: 0 !important; 
+        padding: 0 !important; 
+        background: white !important;
+        color: black !important;
+      }
+      .print-card { 
+        border: 1px solid #ccc !important; 
+        box-shadow: none !important; 
+        color: black !important; 
+        background: white !important; 
+        page-break-inside: avoid; 
+      }
+      th, td { border-color: #cbd5e1 !important; color: black !important; }
     }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased justify-between">
+<body class="h-full flex flex-col font-sans antialiased bg-slate-950 text-slate-100 selection:bg-sky-500 selection:text-white">
 
-  <!-- MANDATORY LOGIN MODAL -->
-  <div id="login-modal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 p-6 md:p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
-      
+  <!-- AUTHENTICATION GUARD MODAL -->
+  <div id="authModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md transition-opacity">
+    <div class="w-full max-w-md p-8 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl space-y-6">
       <div class="text-center space-y-2">
-        <div class="inline-flex p-3 bg-indigo-600/10 text-indigo-400 rounded-xl mb-2 border border-indigo-500/20">
-          <i data-lucide="shield-check" class="w-8 h-8"></i>
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20 mb-2">
+          <i class="fa-solid fa-bus text-2xl"></i>
         </div>
-        <h1 class="text-xl font-bold text-white tracking-wide">OMSI Dispatch Portal</h1>
-        <p class="text-xs text-slate-400">Enter matching Planner credentials to access Duty Builder.</p>
+        <h2 class="text-2xl font-bold tracking-tight text-white">Operations Portal</h2>
+        <p class="text-xs text-slate-400">Sign in to access Running Board Builder</p>
       </div>
 
-      <!-- FORM WITH CASE-INSENSITIVE CHECK & PASSWORD TOGGLE -->
-      <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+      <div id="authErrorMsg" class="hidden p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl text-center font-medium">
+        Invalid credentials. Username and password must match.
+      </div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
         <div>
-          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Planner Username</label>
+          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Planner Username</label>
           <div class="relative">
-            <input type="text" id="login-user" required placeholder="e.g. Planner1" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
+              <i class="fa-solid fa-user text-sm"></i>
+            </span>
+            <input type="text" id="authUsername" required placeholder="e.g. planner1" 
+              class="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-sky-500 text-slate-100 placeholder-slate-600">
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Password</label>
+          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Password</label>
           <div class="relative">
-            <input type="password" id="login-pass" required placeholder="Must match username" class="w-full bg-slate-950 border border-slate-700 rounded-lg pl-3 pr-10 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
-            <button type="button" onclick="togglePassVisibility()" class="absolute right-3 top-2.5 text-slate-400 hover:text-white transition" title="Toggle password visibility">
-              <i data-lucide="eye" id="pass-toggle-icon" class="w-4 h-4"></i>
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
+              <i class="fa-solid fa-lock text-sm"></i>
+            </span>
+            <input type="password" id="authPassword" required placeholder="Must match username" 
+              class="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-sky-500 text-slate-100 placeholder-slate-600">
+            <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-500 hover:text-slate-300">
+              <i id="passwordEyeIcon" class="fa-solid fa-eye text-sm"></i>
             </button>
           </div>
         </div>
 
-        <div id="login-error" class="hidden text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-lg text-center font-medium">
-          Invalid credentials. Password must match username.
+        <div class="pt-2">
+          <button type="submit" class="w-full py-3 px-4 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-semibold text-sm rounded-xl transition-all shadow-lg shadow-sky-600/20 flex items-center justify-center gap-2">
+            <span>Access System</span>
+            <i class="fa-solid fa-arrow-right text-xs"></i>
+          </button>
         </div>
-
-        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
-          <i data-lucide="log-in" class="w-4 h-4"></i>
-          Access System
-        </button>
       </form>
-
-      <div class="text-[11px] text-center text-slate-500 border-t border-slate-800/80 pt-3">
-        Demo Tip: Enter any username (e.g. <code class="text-slate-300 font-mono">planner1</code>) and matching password.
-      </div>
-
+      <p class="text-xs text-center text-slate-500">Case-insensitive matching (`username === password`).</p>
     </div>
   </div>
 
-  <!-- MAIN APP CONTAINER -->
-  <div id="app-container" class="hidden flex-col min-h-screen flex-1">
-    <!-- Header Navbar -->
-    <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+  <!-- HEADER NAVBAR -->
+  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 no-print">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="bg-indigo-600/20 p-2 rounded-lg border border-indigo-500/30">
-          <i data-lucide="bus" class="w-6 h-6 text-indigo-400"></i>
+        <div class="p-2 bg-sky-500/10 text-sky-400 rounded-xl border border-sky-500/20">
+          <i class="fa-solid fa-route text-lg"></i>
         </div>
         <div>
-          <h1 class="text-lg font-bold text-white tracking-wide leading-none">Fleet Operations & Running Board</h1>
-          <p class="text-xs text-slate-400 mt-1">OMSI 2 Duty Card & Schedule Manager</p>
+          <h1 class="font-bold text-slate-100 text-base leading-tight">OMSI 2 Operations & Dispatch</h1>
+          <p class="text-xs text-slate-400">Running Board & Duty Builder System</p>
         </div>
       </div>
 
-      <!-- Navigation Tabs -->
-      <nav class="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-medium">
-        <button onclick="switchTab('workspace')" id="tab-btn-workspace" class="px-3.5 py-1.5 rounded-lg text-indigo-400 bg-slate-900 border border-slate-700/50 flex items-center gap-1.5 transition">
-          <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Duty Builder
+      <div id="userHeaderProfile" class="hidden flex items-center gap-4">
+        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-800/60 border border-slate-700/50 rounded-xl text-xs">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-slate-400">Planner:</span>
+          <span id="activeUserDisplay" class="font-semibold text-slate-200"></span>
+        </div>
+
+        <button onclick="openManualTripModal()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 hover:border-sky-500/50 rounded-xl text-xs font-medium transition-all flex items-center gap-2">
+          <i class="fa-solid fa-plus text-sky-400"></i>
+          <span>Add Manual Trip</span>
         </button>
-        <button onclick="switchTab('import')" id="tab-btn-import" class="px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
-          <i data-lucide="file-up" class="w-3.5 h-3.5"></i> Imports & HOF
+
+        <button onclick="handleLogout()" class="px-3 py-1.5 bg-slate-800 hover:bg-red-500/10 hover:text-red-400 text-slate-400 border border-slate-700 rounded-xl text-xs font-medium transition-all" title="Log Out">
+          <i class="fa-solid fa-right-from-bracket"></i>
         </button>
-        <button onclick="switchTab('paddle')" id="tab-btn-paddle" class="px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
-          <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Driver Paddle
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE -->
+  <main id="appMainContent" class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- TAB CONTROLS & BULK IMPORTER TOOLBAR -->
+    <div class="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between bg-slate-900 p-2 rounded-2xl border border-slate-800 no-print">
+      <nav class="flex gap-1 overflow-x-auto p-1">
+        <button id="tabBtnDuties" onclick="switchTab('duties')" class="px-4 py-2 text-xs font-semibold rounded-xl transition-all bg-sky-600 text-white shadow-md">
+          <i class="fa-solid fa-list-check mr-2"></i>Active Running Boards (<span id="dutyCountBadge">0</span>)
         </button>
-        <button onclick="switchTab('github')" id="tab-btn-github" class="px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition">
-          <i data-lucide="github" class="w-3.5 h-3.5"></i> GitHub Guide
+        <button id="tabBtnTimetables" onclick="switchTab('timetables')" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-all">
+          <i class="fa-solid fa-folder-open mr-2"></i>Timetable Bank (<span id="tripCountBadge">0</span>)
+        </button>
+        <button id="tabBtnBoard" onclick="switchTab('board')" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-all">
+          <i class="fa-solid fa-clipboard-list mr-2"></i>Running Board View
         </button>
       </nav>
 
-      <div class="flex items-center gap-3 text-xs">
-        <span id="paddle-planner-tag" class="bg-slate-800 text-indigo-300 px-3 py-1.5 rounded-full border border-slate-700 font-mono">Planner: ---</span>
-        <div class="hidden sm:flex items-center gap-2 text-slate-400">
-          <i data-lucide="user" class="w-4 h-4"></i>
-          <span id="active-user-display" class="font-medium text-slate-200">---</span>
-        </div>
-        <button onclick="handleLogout()" class="bg-slate-800 hover:bg-rose-600/20 hover:text-rose-400 text-slate-300 p-2 rounded-lg transition border border-slate-700" title="Log Out">
-          <i data-lucide="log-out" class="w-4 h-4"></i>
+      <div class="flex items-center gap-2 px-1">
+        <!-- Bulk TTData Auto-Route Importer -->
+        <label class="cursor-pointer px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all flex items-center gap-2">
+          <i class="fa-solid fa-file-arrow-up text-sky-400"></i>
+          <span>Bulk Import TTData</span>
+          <input type="file" id="bulkFileInput" multiple accept=".json,.txt,.ttp,.ttr" onchange="handleBulkImport(event)" class="hidden">
+        </label>
+
+        <button onclick="confirmResetData()" class="px-3 py-2 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 border border-slate-700 text-slate-400 text-xs font-semibold rounded-xl transition-all" title="Clear Storage">
+          <i class="fa-solid fa-trash-can"></i>
         </button>
       </div>
-    </header>
+    </div>
 
-    <!-- App Content Body -->
-    <main class="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto space-y-6">
-
-      <!-- TAB 1: WORKSPACE / DUTY BUILDER -->
-      <section id="tab-workspace" class="space-y-6">
-        
-        <!-- Workspace Control Header -->
-        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <h2 class="text-xl font-bold text-white mb-1 flex items-center gap-2">
-              <span>Duty Schedule Workspace</span>
-              <span id="conflict-badge" class="hidden bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs px-2.5 py-0.5 rounded-full font-mono font-normal">0 Conflicts</span>
-            </h2>
-            <p class="text-xs text-slate-400">Cascade selections through map, route, and timetables to append trips or deadruns.</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button onclick="addDeadrunModal()" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3.5 py-2 rounded-lg text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
-              <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Add Deadrun (Betriebsfahrt)
-            </button>
-            <button onclick="clearCurrentDuty()" class="bg-slate-800 hover:bg-rose-950 hover:text-rose-400 text-slate-300 px-3 py-2 rounded-lg text-xs font-medium border border-slate-700 transition flex items-center gap-1">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear Duty
-            </button>
-            <button onclick="switchTab('paddle')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-xs font-semibold transition shadow-lg shadow-indigo-600/20 flex items-center gap-1.5">
-              <i data-lucide="printer" class="w-3.5 h-3.5"></i> View Printable Paddle
-            </button>
-          </div>
-        </div>
-
-        <!-- CASCADING TRIP SELECTOR -->
-        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-4">
-          <h3 class="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wider text-xs text-indigo-400">
-            <i data-lucide="layers" class="w-4 h-4"></i> Cascading Trip & Service Selector
-          </h3>
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Map / Depot Selection -->
-            <div>
-              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">1. Map / Depot</label>
-              <select id="sel-map" onchange="handleMapChange()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none">
-                <!-- Dynamically Populated -->
-              </select>
-            </div>
-
-            <!-- Route Selection -->
-            <div>
-              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">2. Route Line</label>
-              <select id="sel-route" onchange="handleRouteChange()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none">
-                <!-- Dynamically Populated -->
-              </select>
-            </div>
-
-            <!-- Direction Selection -->
-            <div>
-              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">3. Direction</label>
-              <select id="sel-direction" onchange="handleDirectionChange()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none">
-                <!-- Dynamically Populated -->
-              </select>
-            </div>
-
-            <!-- Timetable Departure Selection -->
-            <div>
-              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">4. Departure Trip</label>
-              <select id="sel-trip" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none">
-                <!-- Dynamically Populated -->
-              </select>
-            </div>
-          </div>
-
-          <!-- Quick IBIS Preview Bar & Add Button -->
-          <div class="bg-slate-950 border border-slate-800 p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div class="flex flex-wrap items-center gap-4">
-              <div class="font-mono text-slate-300">
-                IBIS Code: <span id="preview-ibis" class="text-emerald-400 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-700">00000</span>
-              </div>
-              <div class="font-mono text-slate-300">
-                Ziel Target: <span id="preview-ziel" class="text-amber-400 font-bold bg-slate-900 px-2 py-0.5 rounded border border-slate-700">000</span>
-              </div>
-              <div class="text-slate-400">
-                Est. Duration: <span id="preview-duration" class="text-slate-200 font-medium">-- mins</span>
-              </div>
-            </div>
-            <button onclick="addSelectedTripToDuty()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-semibold transition shadow flex items-center gap-1.5 ml-auto">
-              <i data-lucide="plus-circle" class="w-4 h-4"></i> Append to Duty Sequence
-            </button>
-          </div>
-        </div>
-
-        <!-- ACTIVE DUTY TIMELINE TABLE -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden space-y-3">
-          <div class="p-4 border-b border-slate-800 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <h3 class="text-base font-bold text-white flex items-center gap-2">
-                <i data-lucide="clock" class="w-5 h-5 text-indigo-400"></i> Active Duty Sequence & Schedule Timetable
-              </h3>
-              <span id="total-trips-tag" class="bg-slate-800 text-slate-300 text-xs px-2.5 py-0.5 rounded-full font-mono border border-slate-700">0 Trips</span>
-            </div>
-            <div id="duty-time-summary" class="text-xs font-mono text-indigo-300 bg-indigo-950/40 px-3 py-1 rounded-lg border border-indigo-500/20">
-              Total Duty Time: 00:00
-            </div>
-          </div>
-
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr class="bg-slate-950/80 text-slate-400 uppercase font-mono tracking-wider border-b border-slate-800">
-                  <th class="p-3">#</th>
-                  <th class="p-3">Activity</th>
-                  <th class="p-3">Routing (Origin &rarr; Terminus)</th>
-                  <th class="p-3">Dep. Time</th>
-                  <th class="p-3">Arr. Time</th>
-                  <th class="p-3">Layover</th>
-                  <th class="p-3">IBIS / Ziel</th>
-                  <th class="p-3 text-center">Adjust Schedule</th>
-                  <th class="p-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody id="duty-table-body" class="divide-y divide-slate-800/60 font-mono">
-                <!-- Dynamically populated -->
-                <tr>
-                  <td colspan="9" class="p-8 text-center text-slate-500 font-sans">
-                    No items in current duty. Select a trip above or add a deadrun to start building the running board.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- TAB 2: IMPORTS, TTDATA & HOF PARSER -->
-      <section id="tab-import" class="hidden space-y-6">
-        
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <h3 class="text-base font-bold text-white flex items-center gap-2">
-                <i data-lucide="file-up" class="w-5 h-5 text-indigo-400"></i> Bulk Route Timetable (ttdata) Importer
-              </h3>
-              <p class="text-xs text-slate-400 mt-0.5">Select or drop multiple JSON / timetable files. Routes are auto-assigned based on each filename.</p>
-            </div>
-            <button onclick="clearTTDataStore()" class="bg-slate-800 hover:bg-rose-950 text-slate-300 text-xs px-3 py-1.5 rounded-lg border border-slate-700">
-              Reset TT Store
-            </button>
-          </div>
-
-          <!-- DRAG AND DROP ZONE -->
-          <div class="border-2 border-dashed border-slate-700 hover:border-indigo-500/50 rounded-xl p-8 text-center transition cursor-pointer bg-slate-950/50" onclick="document.getElementById('ttdata-file-input').click()">
-            <i data-lucide="upload-cloud" class="w-10 h-10 text-slate-500 mx-auto mb-2"></i>
-            <p class="text-xs text-slate-300 font-medium">Click to select or drag & drop <code>ttdata</code> JSON / Timetable files</p>
-            <p class="text-[10px] text-slate-500 mt-1">Accepts .json, .ttp, .ttr, .ttl files (e.g. <code>Route_101.json</code> or <code>Grundorf_Line76.json</code>).</p>
-            <input type="file" id="ttdata-file-input" multiple accept=".json,.txt,.ttp,.ttr,.ttl" class="hidden" onchange="handleBulkTTDataImport(event)">
-          </div>
-
-          <div id="import-log" class="hidden text-xs bg-slate-950 border border-slate-800 p-3 rounded-lg max-h-40 overflow-y-auto font-mono space-y-1"></div>
-        </div>
-
-        <!-- HOF TARGET PARSER -->
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-          <div>
-            <h3 class="text-base font-bold text-white flex items-center gap-2">
-              <i data-lucide="file-code" class="w-5 h-5 text-emerald-400"></i> Native OMSI .hof Target File Parser
-            </h3>
-            <p class="text-xs text-slate-400 mt-0.5">Upload a depot <code class="text-slate-300 font-mono">.hof</code> file to extract IBIS Ziel Codes and destination displays automatically.</p>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="md:col-span-1 border border-slate-800 p-4 rounded-xl bg-slate-950 space-y-3">
-              <label class="block text-xs font-semibold uppercase text-slate-400">Select .hof File</label>
-              <input type="file" id="hof-file-input" accept=".hof,.txt" class="block w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer" onchange="handleHofUpload(event)">
-              <div id="hof-status" class="text-xs text-slate-500 font-mono">No HOF file loaded. Using default system targets.</div>
-            </div>
-
-            <div class="md:col-span-2 border border-slate-800 p-4 rounded-xl bg-slate-950 max-h-56 overflow-y-auto">
-              <div class="text-xs font-semibold uppercase text-slate-400 mb-2">Parsed Ziel Codes</div>
-              <table class="w-full text-left text-xs font-mono">
-                <thead>
-                  <tr class="border-b border-slate-800 text-slate-500">
-                    <th class="pb-2">Ziel Code</th>
-                    <th class="pb-2">Destination Display String</th>
-                    <th class="pb-2">IBIS Line Equivalent</th>
-                  </tr>
-                </thead>
-                <tbody id="hof-targets-table" class="divide-y divide-slate-800/40 text-slate-300">
-                  <!-- Populated from system default or loaded HOF -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- TAB 3: OFFICIAL DRIVER PADDLE / DUTY CARD -->
-      <section id="tab-paddle" class="hidden space-y-6">
-        
-        <!-- Controls Bar -->
-        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-xl flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 class="text-base font-bold text-white flex items-center gap-2">
-              <i data-lucide="file-check" class="w-5 h-5 text-indigo-400"></i> Official Driver Running Board (Paddle)
-            </h3>
-            <p class="text-xs text-slate-400">High-contrast, printable duty sheet formatted for driver cab view.</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-lg text-xs font-medium border border-slate-700 transition flex items-center gap-1.5">
-              <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print Card
-            </button>
-            <button onclick="exportPaddlePDF()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-xs font-semibold transition shadow-lg shadow-indigo-600/20 flex items-center gap-1.5">
-              <i data-lucide="download" class="w-3.5 h-3.5"></i> Export PDF
-            </button>
-          </div>
-        </div>
-
-        <!-- PRINTABLE PADDLE SHEET CONTAINER -->
-        <div class="p-2 bg-slate-950 rounded-2xl">
-          <div id="printable-paddle" class="bg-white text-slate-900 p-8 rounded-xl shadow-2xl space-y-6 font-sans max-w-4xl mx-auto border border-slate-200">
-            
-            <!-- Duty Card Header Header -->
-            <div class="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
-              <div>
-                <div class="text-xs font-bold uppercase tracking-widest text-slate-500">TRANSIT OPERATIONS & DISPATCH DIVISION</div>
-                <h2 class="text-2xl font-black tracking-tight text-slate-900 mt-0.5">DRIVER RUNNING BOARD / DUTY CARD</h2>
-                <div class="text-xs font-mono text-slate-600 mt-1">
-                  Duty No: <strong id="card-duty-no" class="text-slate-900">DUTY-092</strong> | Date: <span id="card-date">2026-10-05</span>
-                </div>
-              </div>
-              <div class="text-right font-mono text-xs space-y-0.5">
-                <div>Planner ID: <strong id="card-planner">---</strong></div>
-                <div>Depot: <strong id="card-depot">Spandau Main Depot</strong></div>
-                <div>System Ver: <strong>v2.4.0</strong></div>
-              </div>
-            </div>
-
-            <!-- Duty Summary Highlights Box -->
-            <div class="grid grid-cols-4 gap-4 bg-slate-100 p-3 rounded-lg border border-slate-300 text-center text-xs font-mono">
-              <div>
-                <div class="text-[10px] text-slate-500 uppercase">First Sign-On</div>
-                <div id="card-signon" class="font-bold text-slate-800">--:--</div>
-              </div>
-              <div>
-                <div class="text-[10px] text-slate-500 uppercase">Sign-Off Time</div>
-                <div id="card-signoff" class="font-bold text-slate-800">--:--</div>
-              </div>
-              <div>
-                <div class="text-[10px] text-slate-500 uppercase">Total Shifts/Trips</div>
-                <div id="card-count" class="font-bold text-slate-800">0</div>
-              </div>
-              <div>
-                <div class="text-[10px] text-slate-500 uppercase">Shift Duration</div>
-                <div id="card-duration" class="font-bold text-slate-800">00h 00m</div>
-              </div>
-            </div>
-
-            <!-- Main Running Board Table -->
-            <table class="w-full text-left border-collapse text-xs font-mono border border-slate-300">
-              <thead>
-                <tr class="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
-                  <th class="p-2 border border-slate-800">Seq</th>
-                  <th class="p-2 border border-slate-800">Activity / Line</th>
-                  <th class="p-2 border border-slate-800">Routing (Origin &rarr; Terminus)</th>
-                  <th class="p-2 border border-slate-800">Dep.</th>
-                  <th class="p-2 border border-slate-800">Arr.</th>
-                  <th class="p-2 border border-slate-800">IBIS Input</th>
-                  <th class="p-2 border border-slate-800">Ziel Code</th>
-                  <th class="p-2 border border-slate-800">Driver Notes</th>
-                </tr>
-              </thead>
-              <tbody id="card-table-body" class="divide-y divide-slate-300 text-slate-900">
-                <tr>
-                  <td colspan="8" class="p-6 text-center text-slate-500 font-sans italic">
-                    No active trips assigned to paddle. Return to Duty Builder workspace to add schedule items.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            <!-- Footnote / Signoff Block -->
-            <div class="pt-6 border-t border-slate-300 grid grid-cols-2 gap-8 text-[11px] text-slate-600 font-mono">
-              <div class="space-y-4">
-                <div>Instructions: Retain this running board in cab at all times. Promptly punch in IBIS line & ziel codes prior to departure.</div>
-                <div class="border-t border-dashed border-slate-400 pt-1">Driver Signature: _______________________</div>
-              </div>
-              <div class="space-y-4 text-right">
-                <div>Issued by Transit Dispatch Systems OMSI Operations Division</div>
-                <div class="border-t border-dashed border-slate-400 pt-1">Dispatcher Approval: _______________________</div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-      </section>
-
-      <!-- TAB 4: GITHUB DEPLOYMENT GUIDE -->
-      <section id="tab-github" class="hidden space-y-6">
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4">
-          <h3 class="text-base font-bold text-white flex items-center gap-2">
-            <i data-lucide="github" class="w-5 h-5 text-indigo-400"></i> Deployment Guide: Host Free on GitHub Pages
-          </h3>
-          <p class="text-xs text-slate-400">Follow these steps to deploy this OMSI Duty Generator app to GitHub Pages free of charge.</p>
-
-          <div class="space-y-4 text-xs text-slate-300 font-mono">
-            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div class="text-indigo-400 font-bold font-sans text-sm">Step 1: Create a GitHub Repository</div>
-              <p class="text-slate-400">1. Log in to GitHub.com and create a new public repository named <code class="text-indigo-300">omsi-duty-builder</code>.</p>
-              <p class="text-slate-400">2. Leave "Add a README file" unchecked and create repository.</p>
-            </div>
-
-            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div class="text-indigo-400 font-bold font-sans text-sm">Step 2: Save and Push File</div>
-              <p class="text-slate-400">1. Save this entire page content as <code class="text-indigo-300">index.html</code>.</p>
-              <p class="text-slate-400">2. Upload <code class="text-indigo-300">index.html</code> directly to the root directory of your repository via the web UI or Git command line.</p>
-            </div>
-
-            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div class="text-indigo-400 font-bold font-sans text-sm">Step 3: Enable GitHub Pages</div>
-              <p class="text-slate-400">1. Navigate to <strong>Settings &rarr; Pages</strong> in your GitHub repository.</p>
-              <p class="text-slate-400">2. Under <em>Build and deployment / Branch</em>, choose <strong>main</strong> (or master) and folder <strong>/ (root)</strong>.</p>
-              <p class="text-slate-400">3. Click <strong>Save</strong>. Your app will be live at <code class="text-emerald-400">https://&lt;username&gt;.github.io/omsi-duty-builder/</code> in 1-2 minutes.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-    </main>
-
-    <!-- FOOTER WITH VERSION, COPYRIGHT & SOFTWARE GROUP -->
-    <footer class="bg-slate-900 border-t border-slate-800 py-4 px-6 mt-auto text-xs text-slate-400 flex flex-col md:flex-row items-center justify-between gap-2">
-      <div class="flex items-center gap-2">
-        <span class="font-semibold text-slate-200">OMS Fleet Operations & Running Board System</span>
-        <span class="bg-slate-800 text-indigo-300 text-[10px] px-2 py-0.5 rounded border border-slate-700 font-mono">v2.4.0</span>
-      </div>
-      <div>
-        &copy; 2026 Transit Dispatch Systems. All rights reserved.
-      </div>
-      <div class="text-slate-500">
-        Powered by <span class="font-semibold text-slate-300">Syverro Group Software</span>
-      </div>
-    </footer>
-  </div>
-
-  <!-- DEADRUN MODAL -->
-  <div id="deadrun-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md space-y-4">
-      <h3 class="text-base font-bold text-white flex items-center gap-2">
-        <i data-lucide="navigation" class="w-5 h-5 text-indigo-400"></i> Add Positioning Deadrun (Betriebsfahrt)
-      </h3>
-      <div class="space-y-3 text-xs">
+    <!-- VIEW 1: ACTIVE RUNNING BOARDS -->
+    <section id="viewDuties" class="space-y-6">
+      <div class="flex items-center justify-between">
         <div>
-          <label class="block font-semibold text-slate-400 mb-1">Origin Terminal</label>
-          <input type="text" id="dead-origin" placeholder="e.g. Spandau Main Depot" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white">
+          <h2 class="text-lg font-bold text-white">Active Running Boards & Shifts</h2>
+          <p class="text-xs text-slate-400">Manage operational driver running boards and sequence revenue trips with deadruns</p>
         </div>
+
+        <button onclick="createNewRunningBoard()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-600/20 transition-all flex items-center gap-2">
+          <i class="fa-solid fa-plus"></i>
+          <span>Create New Running Board</span>
+        </button>
+      </div>
+
+      <!-- Running Board Cards Grid -->
+      <div id="dutiesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- VIEW 2: TIMETABLE BANK -->
+    <section id="viewTimetables" class="hidden space-y-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <label class="block font-semibold text-slate-400 mb-1">Destination Terminal</label>
-          <input type="text" id="dead-terminus" placeholder="e.g. Freudstrasse Terminus" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white">
+          <h2 class="text-lg font-bold text-white">Timetable Trip Bank</h2>
+          <p class="text-xs text-slate-400">Available route schedules and unassigned revenue trips</p>
         </div>
+
+        <button onclick="openManualTripModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-xl transition-all flex items-center gap-2">
+          <i class="fa-solid fa-plus"></i>
+          <span>Add Revenue Trip</span>
+        </button>
+      </div>
+
+      <!-- Filter / Search Bar -->
+      <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-wrap gap-4 items-center justify-between">
+        <div class="relative flex-1 min-w-[240px]">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+          </span>
+          <input type="text" id="tripSearchInput" oninput="renderTimetableBank()" placeholder="Filter by line, origin, destination..." 
+            class="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-sky-500">
+        </div>
+        <div class="text-xs text-slate-400">
+          Total Bank Trips: <span id="bankTripCount" class="font-bold text-sky-400">0</span>
+        </div>
+      </div>
+
+      <!-- Timetable Data Table -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-800/80 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-700/50">
+                <th class="p-3.5">Line / Route</th>
+                <th class="p-3.5">Origin</th>
+                <th class="p-3.5">Destination</th>
+                <th class="p-3.5">Dep. Time</th>
+                <th class="p-3.5">Arr. Time</th>
+                <th class="p-3.5">Notes</th>
+                <th class="p-3.5 text-right">Assign to Running Board</th>
+              </tr>
+            </thead>
+            <tbody id="timetableTableBody" class="divide-y divide-slate-800/60 text-slate-200">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: RUNNING BOARD OUTPUT -->
+    <section id="viewBoard" class="hidden space-y-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print">
+        <div>
+          <h2 class="text-lg font-bold text-white">Printable Running Board View</h2>
+          <p class="text-xs text-slate-400">Simplified driver schedule (Origin, Destination, Departure & Arrival Times)</p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <select id="boardSelector" onchange="renderRunningBoardView()" class="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 font-medium focus:outline-none focus:border-sky-500">
+            <!-- Options populated dynamically -->
+          </select>
+
+          <button onclick="downloadPDF()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2">
+            <i class="fa-solid fa-file-pdf"></i>
+            <span>Export A4 PDF</span>
+          </button>
+
+          <button onclick="window.print()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs rounded-xl transition-all flex items-center gap-2">
+            <i class="fa-solid fa-print"></i>
+            <span>Print</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- RUNNING BOARD DOCUMENT SHEET -->
+      <div id="runningBoardPrintArea" class="print-area bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-2xl shadow-2xl space-y-6 text-slate-100">
+        
+        <!-- Header Information -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-700 pb-4 gap-4">
+          <div>
+            <div class="text-xs font-bold uppercase tracking-widest text-sky-400">Official Driver Running Board</div>
+            <h2 id="boardTitle" class="text-2xl font-extrabold text-white">Running Board: --</h2>
+            <p id="boardPlannerMeta" class="text-xs text-slate-400 mt-1">Planner: -- | Generated: --</p>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-slate-400">Total Shift Duration</div>
+            <div id="boardShiftDuration" class="text-lg font-bold text-emerald-400">00h 00m</div>
+          </div>
+        </div>
+
+        <!-- Running Board Sequential Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-800 text-slate-300 font-bold uppercase border-b-2 border-slate-600">
+                <th class="p-3 w-12 text-center">Seq #</th>
+                <th class="p-3">Type</th>
+                <th class="p-3">Line / Route</th>
+                <th class="p-3">Origin</th>
+                <th class="p-3">Destination</th>
+                <th class="p-3">Dep. Time</th>
+                <th class="p-3">Arr. Time</th>
+                <th class="p-3">Layover</th>
+                <th class="p-3">Notes</th>
+              </tr>
+            </thead>
+            <tbody id="boardTableBody" class="divide-y divide-slate-800">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pt-4 border-t border-slate-800 text-center text-xs text-slate-500">
+          End of Duty Instructions: Report vehicle handovers and any route delays to dispatch prior to booking off.
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL 1: MANUAL TRIP ENTRY -->
+  <div id="manualTripModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-pen-to-square text-sky-400"></i>
+          <span>Manual Trip Entry</span>
+        </h3>
+        <button onclick="closeManualTripModal()" class="text-slate-500 hover:text-slate-300">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="manualTripForm" onsubmit="saveManualTrip(event)" class="space-y-4 text-xs">
+        <div>
+          <label class="block text-slate-400 font-semibold mb-1">Route / Line Name</label>
+          <input type="text" id="mTripLine" required placeholder="e.g. Line 92 Inbound" 
+            class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+        </div>
+
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block font-semibold text-slate-400 mb-1">Departure Time</label>
-            <input type="time" id="dead-dep" value="07:00" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono">
+            <label class="block text-slate-400 font-semibold mb-1">Origin Terminal</label>
+            <input type="text" id="mTripOrigin" required placeholder="e.g. Freudstraße" 
+              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
           </div>
           <div>
-            <label class="block font-semibold text-slate-400 mb-1">Travel Time (Mins)</label>
-            <input type="number" id="dead-duration" value="15" min="1" max="120" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono">
+            <label class="block text-slate-400 font-semibold mb-1">Destination Terminal</label>
+            <input type="text" id="mTripDestination" required placeholder="e.g. Stadtlebenstedt" 
+              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
           </div>
         </div>
-        <div>
-          <label class="block font-semibold text-slate-400 mb-1">Ziel Code</label>
-          <input type="text" id="dead-ziel" value="000 (Depot / Off Duty)" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white font-mono">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Departure Time (HH:MM)</label>
+            <input type="time" id="mTripDepTime" required 
+              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Arrival Time (HH:MM)</label>
+            <input type="time" id="mTripArrTime" required 
+              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+          </div>
         </div>
-      </div>
-      <div class="flex justify-end gap-2 pt-2">
-        <button onclick="closeDeadrunModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs">Cancel</button>
-        <button onclick="saveDeadrun()" class="px-4 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold">Add Deadrun</button>
-      </div>
+
+        <div>
+          <label class="block text-slate-400 font-semibold mb-1">Trip Notes</label>
+          <input type="text" id="mTripNotes" placeholder="e.g. Peak Express Service" 
+            class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-slate-400 font-semibold mb-1">Assign to Running Board</label>
+          <select id="mTripAssignBoard" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+            <option value="">Save to Timetable Bank (Unassigned)</option>
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-3">
+          <button type="button" onclick="closeManualTripModal()" class="px-4 py-2 bg-slate-800 text-slate-300 font-semibold rounded-xl hover:bg-slate-700">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl shadow-lg">Save Trip</button>
+        </div>
+      </form>
     </div>
   </div>
 
+  <!-- MODAL 2: DEADRUN POSITIONING BUILDER -->
+  <div id="deadrunModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-truck-fast text-amber-400"></i>
+          <span>Add Deadrun / Garage Move</span>
+        </h3>
+        <button onclick="closeDeadrunModal()" class="text-slate-500 hover:text-slate-300">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="deadrunForm" onsubmit="saveDeadrun(event)" class="space-y-4 text-xs">
+        <input type="hidden" id="drBoardId">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Origin Location</label>
+            <input type="text" id="drOrigin" required placeholder="e.g. Main Depot" 
+              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Destination Location</label>
+            <input type="text" id="drDestination" required placeholder="e.g. Freudstraße Terminal" 
+              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">Start Time</label>
+            <input type="time" id="drStartTime" required 
+              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-slate-400 font-semibold mb-1">End Time</label>
+            <input type="time" id="drEndTime" required 
+              class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- Quick Adjustment Controls -->
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+          <div class="text-[11px] font-semibold text-slate-400">Quick Time Shift (End Time):</div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="adjustDeadrunTime(-10)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">-10m</button>
+            <button type="button" onclick="adjustDeadrunTime(-5)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">-5m</button>
+            <button type="button" onclick="adjustDeadrunTime(-1)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">-1m</button>
+            <span class="text-slate-600 font-bold">|</span>
+            <button type="button" onclick="adjustDeadrunTime(1)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">+1m</button>
+            <button type="button" onclick="adjustDeadrunTime(5)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">+5m</button>
+            <button type="button" onclick="adjustDeadrunTime(10)" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg">+10m</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-400 font-semibold mb-1">Notes / Driver Instructions</label>
+          <input type="text" id="drNotes" placeholder="e.g. Out of Service Run-out" 
+            class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:border-sky-500 focus:outline-none">
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-3">
+          <button type="button" onclick="closeDeadrunModal()" class="px-4 py-2 bg-slate-800 text-slate-300 font-semibold rounded-xl hover:bg-slate-700">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-xl shadow-lg">Insert Deadrun</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="bg-slate-900 border-t border-slate-800 py-4 no-print mt-auto">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500 font-mono">
+      v2.4.0 • © 2026 Operations Management System • Syverro Group Software
+    </div>
+  </footer>
+
   <script>
-    /* SYSTEM GLOBAL STATE */
-    let currentUser = null;
-    window.routeTTDataStore = window.routeTTDataStore || {};
-    window.activeDutyList = [];
+    /* GLOBAL STATE & CONSTANTS */
+    const STORAGE_KEY = 'OMSI2_RUNNING_BOARD_SYSTEM_V240';
 
-    // Initialize Dexie IndexedDB Database
-    const db = new Dexie('OMSI_FleetOps_DB');
-    db.version(1).stores({
-      timetables: 'routeKey, data',
-      hofTargets: 'zielCode, displayStr, ibisLine',
-      dutySheets: '++id, dutyNo, planner, items, updatedAt'
-    });
-
-    // Default System HOF Ziel Targets
-    const defaultHofTargets = [
-      { zielCode: '000', displayStr: 'Betriebsfahrt / Out of Service', ibisLine: '00000' },
-      { zielCode: '001', displayStr: 'U-Bhf Rathaus Spandau', ibisLine: '09201' },
-      { zielCode: '002', displayStr: 'Freudstrasse Terminus', ibisLine: '09202' },
-      { zielCode: '003', displayStr: 'Heerstrasse Nord', ibisLine: '01301' },
-      { zielCode: '004', displayStr: 'Falkensee Bahnhof', ibisLine: '01302' },
-      { zielCode: '999', displayStr: 'Sonderfahrt / Special Duty', ibisLine: '99900' }
-    ];
-
-    // Default Built-in Maps and Routes Data
-    const defaultMapsData = {
-      "Spandau 1994": {
-        "Route 92": {
-          "Freudstr. -> Rathaus Spandau": {
-            duration: 22,
-            lineNum: "092",
-            routeNum: "01",
-            zielCode: "001",
-            departures: ["06:10", "06:40", "07:10", "07:40", "08:10", "08:40", "09:10", "09:40", "10:10"]
-          },
-          "Rathaus Spandau -> Freudstr.": {
-            duration: 22,
-            lineNum: "092",
-            routeNum: "02",
-            zielCode: "002",
-            departures: ["06:35", "07:05", "07:35", "08:05", "08:35", "09:05", "09:35", "10:05", "10:35"]
-          }
-        },
-        "Route 13N": {
-          "Rathaus Spandau -> Heerstr.": {
-            duration: 18,
-            lineNum: "013",
-            routeNum: "01",
-            zielCode: "003",
-            departures: ["23:00", "23:30", "00:00", "00:30", "01:00"]
-          }
-        }
-      },
-      "Grundorf": {
-        "Line 76": {
-          "Bauernhof -> Nordstadt": {
-            duration: 12,
-            lineNum: "076",
-            routeNum: "01",
-            zielCode: "001",
-            departures: ["08:00", "08:30", "09:00", "09:30", "10:00"]
-          }
-        }
-      }
+    let state = {
+      activePlanner: null,
+      runningBoards: [],
+      timetableBank: []
     };
 
-    window.addEventListener('DOMContentLoaded', async () => {
-      if (window.lucide) lucide.createIcons();
-      
-      // Load Planner Session
-      const savedUser = localStorage.getItem('rb_planner_user');
-      if (savedUser) {
-        loginUser(savedUser);
+    /* INITIALIZATION & PERSISTENCE */
+    window.onload = function() {
+      loadState();
+      checkAuthGuard();
+      seedInitialSampleData();
+    };
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          activePlanner: state.activePlanner,
+          runningBoards: state.runningBoards,
+          timetableBank: state.timetableBank
+        }));
+      } catch(e) {
+        console.error("Failed to persist state:", e);
       }
+    }
 
-      // Sync Dexie and LocalStorage for TTData
-      await loadStoredTTData();
-      renderHofTable(defaultHofTargets);
-      populateMapDropdowns();
-      loadActiveDutyFromStorage();
-    });
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          state.activePlanner = parsed.activePlanner || null;
+          state.runningBoards = parsed.runningBoards || [];
+          state.timetableBank = parsed.timetableBank || [];
+        }
+      } catch(e) {
+        console.error("Failed to load state:", e);
+      }
+    }
 
-    // Case-Insensitive Login Handler
+    function seedInitialSampleData() {
+      if (state.timetableBank.length === 0 && state.runningBoards.length === 0) {
+        state.timetableBank = [
+          { id: 'trip_1', line: 'Line 92', origin: 'Freudstraße', destination: 'Stadtlebenstedt', depTime: '06:15', arrTime: '06:48', notes: 'Morning Peak' },
+          { id: 'trip_2', line: 'Line 92', origin: 'Stadtlebenstedt', destination: 'Freudstraße', depTime: '07:00', arrTime: '07:33', notes: 'Morning Return' },
+          { id: 'trip_3', line: 'Line 76', origin: 'Bauernhof', destination: 'Krankenhaus', depTime: '08:10', arrTime: '08:28', notes: 'Regular Service' }
+        ];
+
+        state.runningBoards = [
+          {
+            id: 'rb_101',
+            code: 'Running Board 101',
+            items: [
+              { id: 'dr_1', type: 'Deadrun', line: 'Depot Transfer', origin: 'Main Garage', destination: 'Freudstraße', depTime: '05:50', arrTime: '06:05', notes: 'Out of service run-out' },
+              { id: 'trip_1', type: 'Revenue', line: 'Line 92', origin: 'Freudstraße', destination: 'Stadtlebenstedt', depTime: '06:15', arrTime: '06:48', notes: 'Morning Peak' }
+            ]
+          }
+        ];
+        saveState();
+      }
+      renderAll();
+    }
+
+    /* AUTHENTICATION CONTROL */
+    function checkAuthGuard() {
+      const authModal = document.getElementById('authModal');
+      const userProfile = document.getElementById('userHeaderProfile');
+      const activeUserDisplay = document.getElementById('activeUserDisplay');
+
+      if (state.activePlanner) {
+        authModal.classList.add('hidden');
+        userProfile.classList.remove('hidden');
+        activeUserDisplay.textContent = state.activePlanner;
+        renderAll();
+      } else {
+        authModal.classList.remove('hidden');
+        userProfile.classList.add('hidden');
+      }
+    }
+
     function handleLogin(e) {
       e.preventDefault();
-      const userEl = document.getElementById('login-user');
-      const passEl = document.getElementById('login-pass');
-      
-      const rawUser = userEl ? userEl.value.trim() : '';
-      const rawPass = passEl ? passEl.value.trim() : '';
+      const userVal = document.getElementById('authUsername').value.trim();
+      const passVal = document.getElementById('authPassword').value.trim();
+      const errorMsg = document.getElementById('authErrorMsg');
 
-      const userClean = rawUser.toLowerCase();
-      const passClean = rawPass.toLowerCase();
-      const errBox = document.getElementById('login-error');
-
-      // Case-insensitive authentication verification
-      if (userClean && userClean === passClean) {
-        if (errBox) errBox.classList.add('hidden');
-        loginUser(rawUser);
+      if (userVal && userVal.toLowerCase() === passVal.toLowerCase()) {
+        state.activePlanner = userVal;
+        errorMsg.classList.add('hidden');
+        saveState();
+        checkAuthGuard();
       } else {
-        if (errBox) errBox.classList.remove('hidden');
+        errorMsg.classList.remove('hidden');
       }
     }
 
-    // Authenticate and mount interface
-    function loginUser(username) {
-      currentUser = username;
-      localStorage.setItem('rb_planner_user', username);
+    function togglePasswordVisibility() {
+      const passInput = document.getElementById('authPassword');
+      const eyeIcon = document.getElementById('passwordEyeIcon');
 
-      const modal = document.getElementById('login-modal');
-      const appContainer = document.getElementById('app-container');
-      
-      if (modal) modal.classList.add('hidden');
-      if (appContainer) {
-        appContainer.classList.remove('hidden');
-        appContainer.classList.add('flex');
+      if (passInput.type === 'password') {
+        passInput.type = 'text';
+        eyeIcon.classList.remove('fa-eye');
+        eyeIcon.classList.add('fa-eye-slash');
+      } else {
+        passInput.type = 'password';
+        eyeIcon.classList.remove('fa-eye-slash');
+        eyeIcon.classList.add('fa-eye');
       }
-
-      const activeUserDisplay = document.getElementById('active-user-display');
-      const paddlePlannerTag = document.getElementById('paddle-planner-tag');
-      const cardPlanner = document.getElementById('card-planner');
-
-      if (activeUserDisplay) activeUserDisplay.innerText = username;
-      if (paddlePlannerTag) paddlePlannerTag.innerText = `Planner: ${username}`;
-      if (cardPlanner) cardPlanner.innerText = username;
     }
 
-    // Logout Handler
     function handleLogout() {
-      localStorage.removeItem('rb_planner_user');
-      currentUser = null;
-      
-      const modal = document.getElementById('login-modal');
-      const appContainer = document.getElementById('app-container');
-      const loginForm = document.getElementById('login-form');
-
-      if (appContainer) {
-        appContainer.classList.add('hidden');
-        appContainer.classList.remove('flex');
-      }
-      if (modal) modal.classList.remove('hidden');
-      if (loginForm) loginForm.reset();
+      state.activePlanner = null;
+      saveState();
+      checkAuthGuard();
     }
 
-    // Password Visibility Toggle
-    function togglePassVisibility() {
-      const passInput = document.getElementById('login-pass');
-      const icon = document.getElementById('pass-toggle-icon');
-
-      if (passInput) {
-        if (passInput.type === 'password') {
-          passInput.type = 'text';
-          if (icon) icon.setAttribute('data-lucide', 'eye-off');
-        } else {
-          passInput.type = 'password';
-          if (icon) icon.setAttribute('data-lucide', 'eye');
-        }
-        if (window.lucide) lucide.createIcons();
-      }
-    }
-
-    function switchTab(tabId) {
-      const tabs = ['workspace', 'import', 'paddle', 'github'];
+    /* TAB SWITCHING */
+    function switchTab(tab) {
+      const tabs = ['duties', 'timetables', 'board'];
       tabs.forEach(t => {
-        const section = document.getElementById(`tab-${t}`);
-        const btn = document.getElementById(`tab-btn-${t}`);
-        if (section) section.classList.add('hidden');
-        if (btn) {
-          btn.classList.remove('text-indigo-400', 'bg-slate-900', 'border', 'border-slate-700/50');
-          btn.classList.add('text-slate-400');
+        const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+        const view = document.getElementById('view' + t.charAt(0).toUpperCase() + t.slice(1));
+
+        if (t === tab) {
+          btn.className = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all bg-sky-600 text-white shadow-md';
+          view.classList.remove('hidden');
+        } else {
+          btn.className = 'px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition-all';
+          view.classList.add('hidden');
         }
       });
 
-      const activeSection = document.getElementById(`tab-${tabId}`);
-      const activeBtn = document.getElementById(`tab-btn-${tabId}`);
-      if (activeSection) activeSection.classList.remove('hidden');
-      if (activeBtn) {
-        activeBtn.classList.add('text-indigo-400', 'bg-slate-900', 'border', 'border-slate-700/50');
-        activeBtn.classList.remove('text-slate-400');
-      }
-
-      if (tabId === 'paddle') {
-        renderDriverPaddle();
-      }
+      if (tab === 'board') renderRunningBoardView();
     }
 
-    async function loadStoredTTData() {
-      const savedTT = localStorage.getItem('rb_ttdata_store');
-      if (savedTT) {
-        try {
-          window.routeTTDataStore = JSON.parse(savedTT);
-        } catch (e) {
-          window.routeTTDataStore = {};
+    /* RENDER ALL COMPONENTS */
+    function renderAll() {
+      renderRunningBoardCards();
+      renderTimetableBank();
+      populateBoardDropdowns();
+      updateBadges();
+    }
+
+    function updateBadges() {
+      document.getElementById('dutyCountBadge').textContent = state.runningBoards.length;
+      document.getElementById('tripCountBadge').textContent = state.timetableBank.length;
+    }
+
+    /* RUNNING BOARDS MANAGEMENT */
+    function createNewRunningBoard() {
+      const num = state.runningBoards.length + 1;
+      const newBoard = {
+        id: 'rb_' + Date.now(),
+        code: 'Running Board ' + (100 + num),
+        items: []
+      };
+      state.runningBoards.push(newBoard);
+      saveState();
+      renderAll();
+    }
+
+    function deleteRunningBoard(id) {
+      state.runningBoards = state.runningBoards.filter(b => b.id !== id);
+      saveState();
+      renderAll();
+    }
+
+    function renderRunningBoardCards() {
+      const container = document.getElementById('dutiesContainer');
+      container.innerHTML = '';
+
+      if (state.runningBoards.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl text-slate-500">
+            <i class="fa-solid fa-clipboard-list text-3xl mb-2 text-slate-600"></i>
+            <p class="text-xs">No active running boards. Click "Create New Running Board" to start scheduling.</p>
+          </div>
+        `;
+        return;
+      }
+
+      state.runningBoards.forEach(board => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl flex flex-col justify-between';
+
+        let itemsHTML = '';
+        if (board.items.length === 0) {
+          itemsHTML = `<p class="text-xs text-slate-500 italic">No trips added to this board yet.</p>`;
+        } else {
+          itemsHTML = board.items.map((item, idx) => {
+            const isDeadrun = item.type === 'Deadrun';
+            return `
+              <div class="p-2.5 ${isDeadrun ? 'bg-amber-500/10 border-amber-500/20' : 'bg-slate-950 border-slate-800'} border rounded-xl flex items-center justify-between text-xs">
+                <div class="space-y-0.5">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold ${isDeadrun ? 'text-amber-400' : 'text-sky-400'}">${item.line || 'Trip'}</span>
+                    <span class="text-[10px] text-slate-500 font-mono">${item.depTime} &rarr; ${item.arrTime}</span>
+                  </div>
+                  <div class="text-[11px] text-slate-300 font-medium">${item.origin} &rarr; ${item.destination}</div>
+                </div>
+                <button onclick="removeItemFromBoard('${board.id}', ${idx})" class="text-slate-500 hover:text-red-400 p-1" title="Remove">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            `;
+          }).join('');
         }
-      }
-      
-      // Load from Dexie IndexedDB
-      try {
-        const allTT = await db.timetables.toArray();
-        allTT.forEach(item => {
-          window.routeTTDataStore[item.routeKey] = item.data;
-        });
-      } catch (e) {
-        console.warn('Dexie read error:', e);
+
+        card.innerHTML = `
+          <div class="space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-bus text-sky-400 text-sm"></i>
+                <h3 class="font-bold text-white text-sm">${board.code}</h3>
+              </div>
+              <button onclick="deleteRunningBoard('${board.id}')" class="text-slate-500 hover:text-red-400 text-xs">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+
+            <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
+              ${itemsHTML}
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-800 flex items-center gap-2">
+            <button onclick="openDeadrunModal('${board.id}')" class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-truck-fast"></i>
+              <span>+ Deadrun</span>
+            </button>
+            <button onclick="selectBoardForView('${board.id}')" class="py-1.5 px-3 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-xl transition-all" title="View Board">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function removeItemFromBoard(boardId, index) {
+      const board = state.runningBoards.find(b => b.id === boardId);
+      if (board) {
+        board.items.splice(index, 1);
+        saveState();
+        renderAll();
       }
     }
 
-    function handleBulkTTDataImport(event) {
-      const files = Array.from(event.target.files);
+    /* TIMETABLE BANK & MANUAL TRIPS */
+    function renderTimetableBank() {
+      const tbody = document.getElementById('timetableTableBody');
+      const search = (document.getElementById('tripSearchInput').value || '').toLowerCase();
+      tbody.innerHTML = '';
+
+      const filtered = state.timetableBank.filter(t => 
+        (t.line && t.line.toLowerCase().includes(search)) ||
+        (t.origin && t.origin.toLowerCase().includes(search)) ||
+        (t.destination && t.destination.toLowerCase().includes(search))
+      );
+
+      document.getElementById('bankTripCount').textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="p-6 text-center text-slate-500 italic">No trips found matching filter.</td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach(trip => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/40 transition-all';
+
+        let selectOptions = `<option value="">Select Running Board...</option>`;
+        state.runningBoards.forEach(b => {
+          selectOptions += `<option value="${b.id}">${b.code}</option>`;
+        });
+
+        tr.innerHTML = `
+          <td class="p-3.5 font-bold text-sky-400">${trip.line}</td>
+          <td class="p-3.5 font-medium">${trip.origin}</td>
+          <td class="p-3.5 font-medium">${trip.destination}</td>
+          <td class="p-3.5 font-mono text-slate-300">${trip.depTime}</td>
+          <td class="p-3.5 font-mono text-slate-300">${trip.arrTime}</td>
+          <td class="p-3.5 text-slate-400 text-[11px]">${trip.notes || '-'}</td>
+          <td class="p-3.5 text-right">
+            <select onchange="assignTripToBoard('${trip.id}', this.value)" class="bg-slate-950 border border-slate-800 rounded-lg text-xs py-1 px-2 text-slate-200 focus:outline-none focus:border-sky-500">
+              ${selectOptions}
+            </select>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function assignTripToBoard(tripId, boardId) {
+      if (!boardId) return;
+      const trip = state.timetableBank.find(t => t.id === tripId);
+      const board = state.runningBoards.find(b => b.id === boardId);
+
+      if (trip && board) {
+        board.items.push({
+          id: 'item_' + Date.now(),
+          type: 'Revenue',
+          line: trip.line,
+          origin: trip.origin,
+          destination: trip.destination,
+          depTime: trip.depTime,
+          arrTime: trip.arrTime,
+          notes: trip.notes || ''
+        });
+        saveState();
+        renderAll();
+      }
+    }
+
+    /* MODAL HANDLERS */
+    function openManualTripModal() {
+      populateBoardDropdowns();
+      document.getElementById('manualTripModal').classList.remove('hidden');
+    }
+
+    function closeManualTripModal() {
+      document.getElementById('manualTripModal').classList.add('hidden');
+      document.getElementById('manualTripForm').reset();
+    }
+
+    function saveManualTrip(e) {
+      e.preventDefault();
+      const line = document.getElementById('mTripLine').value.trim();
+      const origin = document.getElementById('mTripOrigin').value.trim();
+      const destination = document.getElementById('mTripDestination').value.trim();
+      const depTime = document.getElementById('mTripDepTime').value;
+      const arrTime = document.getElementById('mTripArrTime').value;
+      const notes = document.getElementById('mTripNotes').value.trim();
+      const boardId = document.getElementById('mTripAssignBoard').value;
+
+      const newTrip = {
+        id: 'trip_' + Date.now(),
+        line, origin, destination, depTime, arrTime, notes
+      };
+
+      state.timetableBank.push(newTrip);
+
+      if (boardId) {
+        assignTripToBoard(newTrip.id, boardId);
+      }
+
+      saveState();
+      closeManualTripModal();
+      renderAll();
+    }
+
+    function openDeadrunModal(boardId) {
+      document.getElementById('drBoardId').value = boardId;
+      document.getElementById('deadrunModal').classList.remove('hidden');
+    }
+
+    function closeDeadrunModal() {
+      document.getElementById('deadrunModal').classList.add('hidden');
+      document.getElementById('deadrunForm').reset();
+    }
+
+    function adjustDeadrunTime(minutes) {
+      const endTimeInput = document.getElementById('drEndTime');
+      if (!endTimeInput.value) return;
+
+      const [h, m] = endTimeInput.value.split(':').map(Number);
+      let totalMins = h * 60 + m + minutes;
+      if (totalMins < 0) totalMins += 1440;
+      totalMins %= 1440;
+
+      const newH = String(Math.floor(totalMins / 60)).padStart(2, '0');
+      const newM = String(totalMins % 60).padStart(2, '0');
+      endTimeInput.value = `${newH}:${newM}`;
+    }
+
+    function saveDeadrun(e) {
+      e.preventDefault();
+      const boardId = document.getElementById('drBoardId').value;
+      const origin = document.getElementById('drOrigin').value.trim();
+      const destination = document.getElementById('drDestination').value.trim();
+      const depTime = document.getElementById('drStartTime').value;
+      const arrTime = document.getElementById('drEndTime').value;
+      const notes = document.getElementById('drNotes').value.trim() || 'Out of Service Positioning';
+
+      const board = state.runningBoards.find(b => b.id === boardId);
+      if (board) {
+        board.items.push({
+          id: 'dr_' + Date.now(),
+          type: 'Deadrun',
+          line: 'Deadrun Move',
+          origin, destination, depTime, arrTime, notes
+        });
+        saveState();
+        renderAll();
+      }
+      closeDeadrunModal();
+    }
+
+    function populateBoardDropdowns() {
+      const manualSelect = document.getElementById('mTripAssignBoard');
+      manualSelect.innerHTML = `<option value="">Save to Timetable Bank (Unassigned)</option>`;
+      state.runningBoards.forEach(b => {
+        manualSelect.innerHTML += `<option value="${b.id}">${b.code}</option>`;
+      });
+
+      const boardSelector = document.getElementById('boardSelector');
+      boardSelector.innerHTML = '';
+      state.runningBoards.forEach(b => {
+        boardSelector.innerHTML += `<option value="${b.id}">${b.code}</option>`;
+      });
+    }
+
+    /* BULK TTDATA AUTO-ASSIGNMENT IMPORT */
+    function handleBulkImport(e) {
+      const files = Array.from(e.target.files);
       if (!files.length) return;
 
-      const logBox = document.getElementById('import-log');
-      if (logBox) {
-        logBox.classList.remove('hidden');
-        logBox.innerHTML = `<div class="text-indigo-400 font-sans font-semibold mb-1">Processing ${files.length} timetable file(s)...</div>`;
-      }
-
       files.forEach(file => {
-        const routeKey = file.name
+        const routeName = file.name
           .replace(/\.[^/.]+$/, "")
           .replace(/_/g, " ")
           .trim();
 
         const reader = new FileReader();
-
-        reader.onload = async (e) => {
+        reader.onload = (event) => {
           try {
-            let parsedData;
-            if (file.name.endsWith('.json')) {
-              parsedData = JSON.parse(e.target.result);
-            } else {
-              // Basic fallback text parser for .ttp / .ttr
-              parsedData = parseOmsiTextTT(e.target.result, routeKey);
+            const data = JSON.parse(event.target.result);
+            if (Array.isArray(data)) {
+              data.forEach(item => {
+                state.timetableBank.push({
+                  id: 'trip_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                  line: item.line || routeName,
+                  origin: item.origin || 'Terminal A',
+                  destination: item.destination || 'Terminal B',
+                  depTime: item.depTime || '00:00',
+                  arrTime: item.arrTime || '00:00',
+                  notes: item.notes || ''
+                });
+              });
+              saveState();
+              renderAll();
             }
-            
-            // Auto-assign timetable object under parsed route key
-            window.routeTTDataStore[routeKey] = parsedData;
-            localStorage.setItem('rb_ttdata_store', JSON.stringify(window.routeTTDataStore));
-
-            // Persist into Dexie IndexedDB
-            await db.timetables.put({ routeKey: routeKey, data: parsedData });
-
-            if (logBox) {
-              logBox.innerHTML += `<div class="text-emerald-400">✓ Assigned <strong>${file.name}</strong> &rarr; Route: <em>${routeKey}</em></div>`;
-            }
-
-            populateMapDropdowns();
-          } catch (err) {
-            if (logBox) {
-              logBox.innerHTML += `<div class="text-rose-400">✗ Error parsing file <strong>${file.name}</strong></div>`;
-            }
+          } catch(err) {
+            console.warn("Could not parse file as JSON array:", file.name);
           }
         };
-
         reader.readAsText(file);
       });
     }
 
-    function parseOmsiTextTT(text, routeName) {
-      // Basic parser converting raw OMSI text format into standard route structure
-      return {
-        [routeName]: {
-          "Standard Direction": {
-            duration: 20,
-            lineNum: "092",
-            routeNum: "01",
-            zielCode: "001",
-            departures: ["07:00", "08:00", "09:00", "10:00", "11:00"]
-          }
-        }
-      };
+    /* RUNNING BOARD OUTPUT VIEW & CALCULATIONS */
+    function selectBoardForView(boardId) {
+      populateBoardDropdowns();
+      document.getElementById('boardSelector').value = boardId;
+      switchTab('board');
     }
 
-    function clearTTDataStore() {
-      window.routeTTDataStore = {};
-      localStorage.removeItem('rb_ttdata_store');
-      db.timetables.clear();
-      populateMapDropdowns();
-      const logBox = document.getElementById('import-log');
-      if (logBox) {
-        logBox.classList.remove('hidden');
-        logBox.innerHTML = `<div class="text-amber-400">Timetable store cleared successfully.</div>`;
-      }
-    }
+    function renderRunningBoardView() {
+      const boardId = document.getElementById('boardSelector').value;
+      const tbody = document.getElementById('boardTableBody');
+      tbody.innerHTML = '';
 
-    function handleHofUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target.result;
-        const targets = [];
-        const lines = text.split('\n');
-        
-        let inZielBlock = false;
-        let currentZiel = null;
-
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (line.startsWith('[ziel]')) {
-            inZielBlock = true;
-            currentZiel = {};
-            continue;
-          }
-          if (inZielBlock && line.startsWith('[end]')) {
-            if (currentZiel && currentZiel.zielCode) {
-              targets.push(currentZiel);
-            }
-            inZielBlock = false;
-            currentZiel = null;
-            continue;
-          }
-          if (inZielBlock) {
-            if (!currentZiel.zielCode) {
-              currentZiel.zielCode = line.padStart(3, '0');
-            } else if (!currentZiel.displayStr) {
-              currentZiel.displayStr = line;
-              currentZiel.ibisLine = '09200';
-            }
-          }
-        }
-
-        const finalTargets = targets.length > 0 ? targets : defaultHofTargets;
-        renderHofTable(finalTargets);
-        
-        const status = document.getElementById('hof-status');
-        if (status) {
-          status.innerText = `Loaded ${finalTargets.length} Ziel codes from ${file.name}`;
-          status.className = 'text-xs text-emerald-400 font-mono';
-        }
-      };
-      reader.readAsText(file);
-    }
-
-    function renderHofTable(targets) {
-      const tbody = document.getElementById('hof-targets-table');
-      if (!tbody) return;
-
-      tbody.innerHTML = targets.map(t => `
-        <tr>
-          <td class="py-1.5 font-bold text-amber-400">${t.zielCode}</td>
-          <td class="py-1.5 text-slate-200">${t.displayStr}</td>
-          <td class="py-1.5 text-slate-400">${t.ibisLine || '00000'}</td>
-        </tr>
-      `).join('');
-    }
-
-    function populateMapDropdowns() {
-      const mapSel = document.getElementById('sel-map');
-      if (!mapSel) return;
-
-      mapSel.innerHTML = '';
-
-      // Combine built-in maps and imported TTStores
-      const allMaps = { ...defaultMapsData, ...window.routeTTDataStore };
-      
-      Object.keys(allMaps).forEach(mapName => {
-        const opt = document.createElement('option');
-        opt.value = mapName;
-        opt.innerText = mapName;
-        mapSel.appendChild(opt);
-      });
-
-      handleMapChange();
-    }
-
-    function handleMapChange() {
-      const mapSel = document.getElementById('sel-map');
-      const routeSel = document.getElementById('sel-route');
-      if (!mapSel || !routeSel) return;
-
-      const selectedMap = mapSel.value;
-      const allMaps = { ...defaultMapsData, ...window.routeTTDataStore };
-      const routes = allMaps[selectedMap] || {};
-
-      routeSel.innerHTML = '';
-      Object.keys(routes).forEach(routeName => {
-        const opt = document.createElement('option');
-        opt.value = routeName;
-        opt.innerText = routeName;
-        routeSel.appendChild(opt);
-      });
-
-      handleRouteChange();
-    }
-
-    function handleRouteChange() {
-      const mapSel = document.getElementById('sel-map');
-      const routeSel = document.getElementById('sel-route');
-      const dirSel = document.getElementById('sel-direction');
-      if (!mapSel || !routeSel || !dirSel) return;
-
-      const selectedMap = mapSel.value;
-      const selectedRoute = routeSel.value;
-      const allMaps = { ...defaultMapsData, ...window.routeTTDataStore };
-      const directions = allMaps[selectedMap]?.[selectedRoute] || {};
-
-      dirSel.innerHTML = '';
-      Object.keys(directions).forEach(dirName => {
-        const opt = document.createElement('option');
-        opt.value = dirName;
-        opt.innerText = dirName;
-        dirSel.appendChild(opt);
-      });
-
-      handleDirectionChange();
-    }
-
-    function handleDirectionChange() {
-      const mapSel = document.getElementById('sel-map');
-      const routeSel = document.getElementById('sel-route');
-      const dirSel = document.getElementById('sel-direction');
-      const tripSel = document.getElementById('sel-trip');
-      if (!tripSel) return;
-
-      const selectedMap = mapSel.value;
-      const selectedRoute = routeSel.value;
-      const selectedDir = dirSel.value;
-      
-      const allMaps = { ...defaultMapsData, ...window.routeTTDataStore };
-      const dirObj = allMaps[selectedMap]?.[selectedRoute]?.[selectedDir] || {
-        duration: 20,
-        lineNum: "000",
-        routeNum: "01",
-        zielCode: "000",
-        departures: ["08:00"]
-      };
-
-      tripSel.innerHTML = '';
-      dirObj.departures.forEach(time => {
-        const opt = document.createElement('option');
-        opt.value = time;
-        opt.innerText = `Departure: ${time}`;
-        tripSel.appendChild(opt);
-      });
-
-      // Update IBIS preview string
-      const ibisCode = `${dirObj.lineNum || '000'}${dirObj.routeNum || '01'}`;
-      const previewIbis = document.getElementById('preview-ibis');
-      const previewZiel = document.getElementById('preview-ziel');
-      const previewDur = document.getElementById('preview-duration');
-
-      if (previewIbis) previewIbis.innerText = ibisCode;
-      if (previewZiel) previewZiel.innerText = dirObj.zielCode || '000';
-      if (previewDur) previewDur.innerText = `${dirObj.duration} mins`;
-    }
-
-    function addSelectedTripToDuty() {
-      const mapSel = document.getElementById('sel-map');
-      const routeSel = document.getElementById('sel-route');
-      const dirSel = document.getElementById('sel-direction');
-      const tripSel = document.getElementById('sel-trip');
-
-      const mapName = mapSel.value;
-      const routeName = routeSel.value;
-      const dirName = dirSel.value;
-      const depTime = tripSel.value;
-
-      const allMaps = { ...defaultMapsData, ...window.routeTTDataStore };
-      const dirObj = allMaps[mapName]?.[routeName]?.[dirName] || {
-        duration: 20,
-        lineNum: "092",
-        routeNum: "01",
-        zielCode: "001"
-      };
-
-      const arrTime = calculateArrTime(depTime, dirObj.duration);
-      const ibisCode = `${dirObj.lineNum || '000'}${dirObj.routeNum || '01'}`;
-
-      const dutyItem = {
-        id: Date.now(),
-        type: 'TRIP',
-        line: routeName,
-        routing: dirName,
-        depTime: depTime,
-        arrTime: arrTime,
-        duration: dirObj.duration,
-        ibis: ibisCode,
-        ziel: dirObj.zielCode || '001',
-        notes: 'Commercial Service'
-      };
-
-      window.activeDutyList.push(dutyItem);
-      recalculateLayoversAndConflicts();
-      renderDutyTable();
-      saveActiveDutyToStorage();
-    }
-
-    function addDeadrunModal() {
-      const modal = document.getElementById('deadrun-modal');
-      if (modal) modal.classList.remove('hidden');
-    }
-
-    function closeDeadrunModal() {
-      const modal = document.getElementById('deadrun-modal');
-      if (modal) modal.classList.add('hidden');
-    }
-
-    function saveDeadrun() {
-      const origin = document.getElementById('dead-origin').value || 'Depot';
-      const terminus = document.getElementById('dead-terminus').value || 'Terminus';
-      const depTime = document.getElementById('dead-dep').value || '07:00';
-      const duration = parseInt(document.getElementById('dead-duration').value) || 15;
-      const ziel = document.getElementById('dead-ziel').value || '000';
-
-      const arrTime = calculateArrTime(depTime, duration);
-
-      const deadItem = {
-        id: Date.now(),
-        type: 'DEADRUN',
-        line: 'DEADRUN',
-        routing: `${origin} &rarr; ${terminus}`,
-        depTime: depTime,
-        arrTime: arrTime,
-        duration: duration,
-        ibis: '00000',
-        ziel: ziel,
-        notes: 'Positioning Run (Betriebsfahrt)'
-      };
-
-      window.activeDutyList.push(deadItem);
-      recalculateLayoversAndConflicts();
-      renderDutyTable();
-      saveActiveDutyToStorage();
-      closeDeadrunModal();
-    }
-
-    function adjustTime(itemId, mins) {
-      const item = window.activeDutyList.find(i => i.id === itemId);
-      if (!item) return;
-
-      item.depTime = addMinutesToTime(item.depTime, mins);
-      item.arrTime = calculateArrTime(item.depTime, item.duration);
-
-      recalculateLayoversAndConflicts();
-      renderDutyTable();
-      saveActiveDutyToStorage();
-    }
-
-    function deleteDutyItem(itemId) {
-      window.activeDutyList = window.activeDutyList.filter(i => i.id !== itemId);
-      recalculateLayoversAndConflicts();
-      renderDutyTable();
-      saveActiveDutyToStorage();
-    }
-
-    function clearCurrentDuty() {
-      window.activeDutyList = [];
-      recalculateLayoversAndConflicts();
-      renderDutyTable();
-      saveActiveDutyToStorage();
-    }
-
-    function recalculateLayoversAndConflicts() {
-      // Sort duty chronologically
-      window.activeDutyList.sort((a, b) => timeToMinutes(a.depTime) - timeToMinutes(b.depTime));
-
-      let conflictCount = 0;
-
-      for (let i = 0; i < window.activeDutyList.length; i++) {
-        const current = window.activeDutyList[i];
-        const next = window.activeDutyList[i + 1];
-
-        if (next) {
-          const currentArrMins = timeToMinutes(current.arrTime);
-          const nextDepMins = timeToMinutes(next.depTime);
-          const layoverMins = nextDepMins - currentArrMins;
-
-          current.layover = layoverMins;
-
-          if (layoverMins < 0) {
-            current.hasConflict = true;
-            next.hasConflict = true;
-            conflictCount++;
-          } else {
-            current.hasConflict = current.hasConflict || false;
-          }
-        } else {
-          current.layover = 0;
-        }
-      }
-
-      const badge = document.getElementById('conflict-badge');
-      if (badge) {
-        if (conflictCount > 0) {
-          badge.innerText = `${conflictCount} Overlap Conflict(s)`;
-          badge.classList.remove('hidden');
-        } else {
-          badge.classList.add('hidden');
-        }
-      }
-    }
-
-    function renderDutyTable() {
-      const tbody = document.getElementById('duty-table-body');
-      const tripTag = document.getElementById('total-trips-tag');
-      const timeSummary = document.getElementById('duty-time-summary');
-      if (!tbody) return;
-
-      if (tripTag) tripTag.innerText = `${window.activeDutyList.length} Items`;
-
-      if (window.activeDutyList.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="9" class="p-8 text-center text-slate-500 font-sans">
-              No items in current duty. Select a trip above or add a deadrun to start building the running board.
-            </td>
-          </tr>
-        `;
-        if (timeSummary) timeSummary.innerText = `Total Duty Time: 00:00`;
+      const board = state.runningBoards.find(b => b.id === boardId);
+      if (!board) {
+        document.getElementById('boardTitle').textContent = 'Running Board: --';
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-500">Select a valid running board.</td></tr>`;
         return;
       }
+
+      document.getElementById('boardTitle').textContent = board.code;
+      document.getElementById('boardPlannerMeta').textContent = `Planner: ${state.activePlanner || 'System'} | Generated: ${new Date().toLocaleDateString()}`;
+
+      if (board.items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-500 italic">No scheduled trips on this running board.</td></tr>`;
+        document.getElementById('boardShiftDuration').textContent = '00h 00m';
+        return;
+      }
+
+      // Sort items chronologically
+      board.items.sort((a, b) => a.depTime.localeCompare(b.depTime));
 
       let totalMinutes = 0;
-      if (window.activeDutyList.length > 0) {
-        const firstDep = timeToMinutes(window.activeDutyList[0].depTime);
-        const lastArr = timeToMinutes(window.activeDutyList[window.activeDutyList.length - 1].arrTime);
-        totalMinutes = lastArr - firstDep;
+      if (board.items.length > 0) {
+        const start = board.items[0].depTime.split(':').map(Number);
+        const end = board.items[board.items.length - 1].arrTime.split(':').map(Number);
+        let diff = (end[0] * 60 + end[1]) - (start[0] * 60 + start[1]);
+        if (diff < 0) diff += 1440;
+        totalMinutes = diff;
       }
 
-      if (timeSummary) {
-        const hrs = Math.floor(Math.max(0, totalMinutes) / 60);
-        const mins = Math.max(0, totalMinutes) % 60;
-        timeSummary.innerText = `Total Duty Shift Duration: ${String(hrs).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m`;
-      }
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      document.getElementById('boardShiftDuration').textContent = `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
 
-      tbody.innerHTML = window.activeDutyList.map((item, idx) => `
-        <tr class="${item.hasConflict ? 'bg-rose-950/30' : 'hover:bg-slate-800/40'} transition">
-          <td class="p-3 font-bold text-slate-400">${idx + 1}</td>
-          <td class="p-3">
-            <span class="px-2 py-0.5 rounded ${item.type === 'DEADRUN' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'}">
-              ${item.line}
-            </span>
-          </td>
-          <td class="p-3 text-slate-200">${item.routing}</td>
-          <td class="p-3 text-emerald-400 font-bold">${item.depTime}</td>
-          <td class="p-3 text-slate-300">${item.arrTime}</td>
-          <td class="p-3">
-            <span class="${item.layover < 0 ? 'text-rose-400 font-bold' : 'text-slate-400'}">
-              ${item.layover !== undefined ? `${item.layover}m` : '--'}
-            </span>
-          </td>
-          <td class="p-3 text-slate-400">
-            IBIS: <span class="text-indigo-300">${item.ibis}</span> | Ziel: <span class="text-amber-300">${item.ziel}</span>
-          </td>
-          <td class="p-3 text-center">
-            <div class="inline-flex items-center gap-1">
-              <button onclick="adjustTime(${item.id}, -5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">-5m</button>
-              <button onclick="adjustTime(${item.id}, -1)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">-1m</button>
-              <button onclick="adjustTime(${item.id}, 1)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">+1m</button>
-              <button onclick="adjustTime(${item.id}, 5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">+5m</button>
-            </div>
-          </td>
-          <td class="p-3 text-right">
-            <button onclick="deleteDutyItem(${item.id})" class="text-rose-400 hover:text-rose-300 p-1">
-              <i data-lucide="x" class="w-4 h-4"></i>
-            </button>
-          </td>
-        </tr>
-      `).join('');
+      board.items.forEach((item, idx) => {
+        let layoverStr = '-';
+        if (idx < board.items.length - 1) {
+          const arr = item.arrTime.split(':').map(Number);
+          const nextDep = board.items[idx + 1].depTime.split(':').map(Number);
+          let lay = (nextDep[0] * 60 + nextDep[1]) - (arr[0] * 60 + arr[1]);
+          if (lay < 0) lay += 1440;
+          layoverStr = `${lay}m`;
+        }
 
-      if (window.lucide) lucide.createIcons();
-    }
+        const isDeadrun = item.type === 'Deadrun';
+        const tr = document.createElement('tr');
+        tr.className = isDeadrun ? 'bg-amber-500/5 hover:bg-amber-500/10' : 'hover:bg-slate-800/40';
 
-    function renderDriverPaddle() {
-      const tbody = document.getElementById('card-table-body');
-      const signon = document.getElementById('card-signon');
-      const signoff = document.getElementById('card-signoff');
-      const count = document.getElementById('card-count');
-      const duration = document.getElementById('card-duration');
-      const cardDate = document.getElementById('card-date');
-
-      if (!tbody) return;
-
-      if (cardDate) cardDate.innerText = new Date().toISOString().split('T')[0];
-
-      if (window.activeDutyList.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="8" class="p-6 text-center text-slate-500 font-sans italic">
-              No active trips assigned to paddle. Return to Duty Builder workspace to add schedule items.
-            </td>
-          </tr>
+        tr.innerHTML = `
+          <td class="p-3 text-center font-mono font-bold text-slate-400">${idx + 1}</td>
+          <td class="p-3 font-semibold ${isDeadrun ? 'text-amber-400' : 'text-sky-400'}">${item.type}</td>
+          <td class="p-3 font-bold text-white">${item.line}</td>
+          <td class="p-3 font-medium">${item.origin}</td>
+          <td class="p-3 font-medium">${item.destination}</td>
+          <td class="p-3 font-mono font-bold text-slate-200">${item.depTime}</td>
+          <td class="p-3 font-mono font-bold text-slate-200">${item.arrTime}</td>
+          <td class="p-3 font-mono text-emerald-400">${layoverStr}</td>
+          <td class="p-3 text-slate-400 text-[11px]">${item.notes || '-'}</td>
         `;
-        if (signon) signon.innerText = '--:--';
-        if (signoff) signoff.innerText = '--:--';
-        if (count) count.innerText = '0';
-        if (duration) duration.innerText = '00h 00m';
-        return;
-      }
-
-      const firstItem = window.activeDutyList[0];
-      const lastItem = window.activeDutyList[window.activeDutyList.length - 1];
-
-      if (signon) signon.innerText = firstItem.depTime;
-      if (signoff) signoff.innerText = lastItem.arrTime;
-      if (count) count.innerText = window.activeDutyList.length;
-
-      const totalMins = timeToMinutes(lastItem.arrTime) - timeToMinutes(firstItem.depTime);
-      const hrs = Math.floor(Math.max(0, totalMins) / 60);
-      const mins = Math.max(0, totalMins) % 60;
-      if (duration) duration.innerText = `${hrs}h ${mins}m`;
-
-      tbody.innerHTML = window.activeDutyList.map((item, idx) => `
-        <tr class="border-b border-slate-200">
-          <td class="p-2 border border-slate-300 font-bold">${idx + 1}</td>
-          <td class="p-2 border border-slate-300">${item.line}</td>
-          <td class="p-2 border border-slate-300 font-sans">${item.routing}</td>
-          <td class="p-2 border border-slate-300 font-bold">${item.depTime}</td>
-          <td class="p-2 border border-slate-300">${item.arrTime}</td>
-          <td class="p-2 border border-slate-300">${item.ibis}</td>
-          <td class="p-2 border border-slate-300 font-bold">${item.ziel}</td>
-          <td class="p-2 border border-slate-300 font-sans text-[10px]">${item.notes || ''}</td>
-        </tr>
-      `).join('');
+        tbody.appendChild(tr);
+      });
     }
 
-    function exportPaddlePDF() {
-      const element = document.getElementById('printable-paddle');
-      if (!element) return;
-
+    /* PDF EXPORT */
+    function downloadPDF() {
+      const element = document.getElementById('runningBoardPrintArea');
       const opt = {
-        margin:       0.3,
-        filename:     `OMSI_Duty_Card_${new Date().toISOString().split('T')[0]}.pdf`,
+        margin:       0.5,
+        filename:     'Running_Board_Schedule.pdf',
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2 },
         jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
       };
-
       html2pdf().set(opt).from(element).save();
     }
 
-    function saveActiveDutyToStorage() {
-      localStorage.setItem('rb_active_duty', JSON.stringify(window.activeDutyList));
-      db.dutySheets.put({
-        dutyNo: 'DUTY-092',
-        planner: currentUser || 'Planner1',
-        items: window.activeDutyList,
-        updatedAt: new Date().toISOString()
-      });
-    }
-
-    function loadActiveDutyFromStorage() {
-      const saved = localStorage.getItem('rb_active_duty');
-      if (saved) {
-        try {
-          window.activeDutyList = JSON.parse(saved);
-          recalculateLayoversAndConflicts();
-          renderDutyTable();
-        } catch(e) {
-          window.activeDutyList = [];
-        }
+    function confirmResetData() {
+      if (confirm("Reset all running boards and stored timetable data?")) {
+        localStorage.removeItem(STORAGE_KEY);
+        state.runningBoards = [];
+        state.timetableBank = [];
+        seedInitialSampleData();
       }
-    }
-
-    function timeToMinutes(timeStr) {
-      if (!timeStr) return 0;
-      const [h, m] = timeStr.split(':').map(Number);
-      return (h * 60) + m;
-    }
-
-    function addMinutesToTime(timeStr, minsToAdd) {
-      let total = timeToMinutes(timeStr) + minsToAdd;
-      if (total < 0) total += 1440;
-      total = total % 1440;
-      const hrs = Math.floor(total / 60);
-      const mins = total % 60;
-      return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-    }
-
-    function calculateArrTime(depTime, durationMins) {
-      return addMinutesToTime(depTime, durationMins);
     }
   </script>
 </body>
