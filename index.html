@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Operations & Running Board Builder</title>
+  <title>Operations & Running Board Builder (Realtime Sync)</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -93,6 +93,10 @@
         <div class="flex items-center gap-3">
           <i data-lucide="bus" class="w-6 h-6 text-blue-500"></i>
           <h1 class="text-lg font-bold text-white tracking-wide">Fleet Operations & Running Boards</h1>
+          <!-- Sync Indicator -->
+          <span id="sync-status" class="flex items-center gap-1.5 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full font-medium">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Firebase Live Sync Active
+          </span>
         </div>
 
         <!-- View Switcher Tabs -->
@@ -156,7 +160,7 @@
 
         <!-- Cascading Timetable Selector -->
         <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
-          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Add Pre-Scheduled Trip from Database</span>
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Add Pre-Scheduled Trip from Cloud Database</span>
           <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
             <div>
               <label class="block text-slate-500 mb-1">Route</label>
@@ -190,7 +194,7 @@
         <div class="flex items-center justify-between border-b border-slate-800 pb-4 no-print">
           <div>
             <h3 class="text-lg font-bold text-white">Driver Running Board Preview</h3>
-            <p class="text-xs text-slate-400">Items auto-sort chronologically by departure time. Click <i data-lucide="edit-2" class="w-3 h-3 inline text-blue-400"></i> to adjust details on active trips.</p>
+            <p class="text-xs text-slate-400">Items sync live across all connected planners. Click <i data-lucide="edit-2" class="w-3 h-3 inline text-blue-400"></i> to edit details.</p>
           </div>
           <div class="flex gap-3">
             <button onclick="clearCurrentBoard()" class="bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-400 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700 transition">
@@ -202,7 +206,7 @@
           </div>
         </div>
 
-        <!-- REALISTIC DRIVER RUNNING PADDLE (PRINTABLE / PDF EXPORT CONTAINER) -->
+        <!-- REALISTIC DRIVER RUNNING PADDLE Container -->
         <div id="printable-board" class="paddle-paper border border-slate-300 rounded-lg p-8 shadow-2xl text-slate-900 space-y-6">
           
           <!-- Header Block -->
@@ -278,9 +282,9 @@
       
       <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-2">
         <h2 class="text-xl font-bold text-white flex items-center gap-2">
-          <i data-lucide="database" class="w-6 h-6 text-blue-500"></i> Backend Map & Timetable Database
+          <i data-lucide="database" class="w-6 h-6 text-blue-500"></i> Backend Map & Timetable Database (Synced)
         </h2>
-        <p class="text-xs text-slate-400">Manage available maps, create route structures, or bulk import OMSI native `.ttl` files[cite: 1].</p>
+        <p class="text-xs text-slate-400">Manage available maps or upload OMSI `.ttl` files. All data automatically synchronizes across all active planners in real time.</p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -310,7 +314,7 @@
           <h3 class="text-base font-bold text-white flex items-center gap-2">
             <i data-lucide="file-up" class="w-5 h-5 text-blue-500"></i> Step 2: Bulk TTL / Schedule Upload
           </h3>
-          <p class="text-xs text-slate-400">Select target map, then upload native OMSI `.ttl` files directly[cite: 1]. Tours, trips, and departure times will be extracted automatically[cite: 1].</p>
+          <p class="text-xs text-slate-400">Select target map, then upload native OMSI `.ttl` files directly. Schedules will sync to cloud storage instantly.</p>
           
           <div class="space-y-3 text-xs">
             <div>
@@ -323,7 +327,7 @@
             <div class="border-2 border-dashed border-slate-700 hover:border-blue-500/50 rounded-xl p-6 text-center transition cursor-pointer bg-slate-950/50" onclick="document.getElementById('ttl-file-input').click()">
               <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-500 mx-auto mb-2"></i>
               <p class="text-xs text-slate-300 font-medium">Click to select or drop <code>.ttl</code> files</p>
-              <p class="text-[10px] text-slate-500 mt-1">Accepts native OMSI `.ttl` timetable files[cite: 1]. Filename sets route number (e.g. <code>99.ttl</code>[cite: 1]).</p>
+              <p class="text-[10px] text-slate-500 mt-1">Accepts native OMSI `.ttl` timetable files. Filename sets route number (e.g. <code>99.ttl</code>).</p>
               <input type="file" id="ttl-file-input" multiple accept=".ttl,.txt,.json" class="hidden" onchange="handleBulkTTLImport(event)">
             </div>
 
@@ -335,7 +339,7 @@
 
       <!-- STORED MAPS & ROUTES DATABASE TABLE -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-        <h3 class="text-base font-bold text-white">Stored Maps & Routes Database</h3>
+        <h3 class="text-base font-bold text-white">Cloud Database - Stored Maps & Routes</h3>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs border-collapse">
             <thead>
@@ -362,7 +366,7 @@
     <footer class="bg-slate-900 border-t border-slate-800 py-4 px-6 mt-auto text-xs text-slate-400 flex flex-col md:flex-row items-center justify-between gap-2">
       <div class="flex items-center gap-2">
         <span class="font-semibold text-slate-200">Operations Management System</span>
-        <span class="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded border border-slate-700 font-mono-num">v2.5.0</span>
+        <span class="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded border border-slate-700 font-mono-num">v3.0.0 (Cloud Sync)</span>
       </div>
       <div>
         &copy; 2026 Operations Management System. All rights reserved.
@@ -502,11 +506,51 @@
     </div>
   </div>
 
-  <!-- SYSTEM JAVASCRIPT & TTL PARSER -->
-  <script>
+  <!-- FIREBASE REALTIME SYNC SDK & APP LOGIC -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    // REPLACE THIS WITH YOUR FIREBASE PROJECT CONFIG
+  const firebaseConfig = {
+    apiKey: "AIzaSyAmFOuKS40T0_3BvW90Xmi8smzGNvz3-Ig",
+    authDomain: "omsi-runningboards.firebaseapp.com",
+    databaseURL: "https://omsi-runningboards-default-rtdb.firebaseio.com",
+    projectId: "omsi-runningboards",
+    storageBucket: "omsi-runningboards.firebasestorage.app",
+    messagingSenderId: "1021306079338",
+    appId: "1:1021306079338:web:6800c4c4824fe4c58b6213"
+  };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
     let currentUser = null;
     let mapsStore = {};
     let activeRunningBoard = [];
+
+    // REAL-TIME CLOUD LISTENERS
+    onValue(ref(db, 'mapsStore'), (snapshot) => {
+      const data = snapshot.val();
+      mapsStore = data || {};
+      refreshMapDropdowns();
+      renderDatabaseTable();
+    });
+
+    onValue(ref(db, 'activeRunningBoard'), (snapshot) => {
+      const data = snapshot.val();
+      activeRunningBoard = data || [];
+      renderRunningBoardTable();
+    });
+
+    function pushMapsToCloud() {
+      set(ref(db, 'mapsStore'), mapsStore);
+    }
+
+    function pushBoardToCloud() {
+      set(ref(db, 'activeRunningBoard'), activeRunningBoard);
+    }
 
     // Initialize application on load
     window.addEventListener('DOMContentLoaded', () => {
@@ -515,18 +559,11 @@
       const savedUser = localStorage.getItem('rb_planner_user');
       if (savedUser) loginUser(savedUser);
 
-      const savedMaps = localStorage.getItem('rb_maps_store');
-      if (savedMaps) {
-        try { mapsStore = JSON.parse(savedMaps); } catch(e) { mapsStore = {}; }
-      }
-
-      refreshMapDropdowns();
-      renderDatabaseTable();
       updateRunningBoardHeader();
     });
 
     // Login Guard
-    function handleLogin(e) {
+    window.handleLogin = function(e) {
       e.preventDefault();
       const userEl = document.getElementById('login-user');
       const passEl = document.getElementById('login-pass');
@@ -540,29 +577,29 @@
       } else {
         document.getElementById('login-error').classList.remove('hidden');
       }
-    }
+    };
 
     function loginUser(username) {
       currentUser = username;
       localStorage.setItem('rb_planner_user', username);
 
       document.getElementById('login-modal').classList.add('hidden');
-      const app = document.getElementById('app-container');
-      app.classList.remove('hidden');
-      app.classList.add('flex');
+      const appContainer = document.getElementById('app-container');
+      appContainer.classList.remove('hidden');
+      appContainer.classList.add('flex');
 
       document.getElementById('paddle-planner-tag').innerText = `Planner: ${username}`;
       document.getElementById('board-display-planner').innerText = `PLANNER: ${username}`;
     }
 
-    function handleLogout() {
+    window.handleLogout = function() {
       localStorage.removeItem('rb_planner_user');
       currentUser = null;
       document.getElementById('app-container').classList.add('hidden');
       document.getElementById('login-modal').classList.remove('hidden');
-    }
+    };
 
-    function togglePassVisibility() {
+    window.togglePassVisibility = function() {
       const passInput = document.getElementById('login-pass');
       const icon = document.getElementById('pass-toggle-icon');
       if (passInput.type === 'password') {
@@ -573,10 +610,10 @@
         icon.setAttribute('data-lucide', 'eye');
       }
       lucide.createIcons();
-    }
+    };
 
     // View Switching
-    function switchView(view) {
+    window.switchView = function(view) {
       const mainView = document.getElementById('view-main');
       const backendView = document.getElementById('view-backend');
       const navMain = document.getElementById('nav-main');
@@ -593,10 +630,10 @@
         navBackend.className = "px-4 py-1.5 rounded-lg text-blue-400 bg-slate-900 border border-slate-700 transition";
         navMain.className = "px-4 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition";
       }
-    }
+    };
 
     // Backend Map Creation
-    function handleCreateMap(e) {
+    window.handleCreateMap = function(e) {
       e.preventDefault();
       const mapName = document.getElementById('new-map-name').value.trim();
       const mapDepot = document.getElementById('new-map-depot').value.trim() || 'Depot';
@@ -605,18 +642,16 @@
 
       if (!mapsStore[mapName]) {
         mapsStore[mapName] = { name: mapName, depot: mapDepot, routes: {} };
-        saveMapsStore();
-        refreshMapDropdowns();
-        renderDatabaseTable();
-        alert(`Map "${mapName}" created successfully!`);
+        pushMapsToCloud();
+        alert(`Map "${mapName}" created and synced to cloud!`);
         e.target.reset();
       } else {
         alert('A map with this name already exists.');
       }
-    }
+    };
 
     // BULK OMSI TTL FILE PARSER
-    function handleBulkTTLImport(e) {
+    window.handleBulkTTLImport = function(e) {
       const targetMapName = document.getElementById('backend-target-map').value;
       if (!targetMapName) {
         alert('Please select a target map first.');
@@ -634,35 +669,34 @@
       let processed = 0;
 
       files.forEach(file => {
-        const routeNum = file.name.replace(/\.[^/.]+$/, "").trim(); // e.g. "99" from "99.ttl"
+        const routeNum = file.name.replace(/\.[^/.]+$/, "").trim();
         const reader = new FileReader();
 
         reader.onload = (event) => {
           const text = event.target.result;
           parseNativeTTLText(targetMapName, routeNum, text);
           processed++;
-          logBox.innerHTML += `<div class="text-emerald-400">✓ Auto-parsed <strong>${file.name}</strong> &rarr; Line ${routeNum}</div>`;
+          logBox.innerHTML += `<div class="text-emerald-400">✓ Synced <strong>${file.name}</strong> &rarr; Line ${routeNum}</div>`;
           
           if (processed === files.length) {
-            saveMapsStore();
-            refreshMapDropdowns();
-            renderDatabaseTable();
+            pushMapsToCloud();
           }
         };
 
         reader.readAsText(file);
       });
-    }
+    };
 
     function parseNativeTTLText(mapName, routeNum, content) {
       const lines = content.split(/\r?\n/);
       let currentDepTime = "";
+      if (!mapsStore[mapName].routes) mapsStore[mapName].routes = {};
       let routeObj = mapsStore[mapName].routes[routeNum] || { name: `Line ${routeNum}`, trips: [] };
+      if (!routeObj.trips) routeObj.trips = [];
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
 
-        // Extract departure timestamp comments e.g. "Dep.: 6:50:0"
         if (line.startsWith("Dep.:")) {
           const parts = line.replace("Dep.:", "").trim().split(":");
           if (parts.length >= 2) {
@@ -672,7 +706,6 @@
           }
         }
 
-        // Extract [addtrip] blocks
         if (line === "[addtrip]" && i + 1 < lines.length) {
           const tripTitle = lines[i + 1].trim();
           let isDeadrun = tripTitle.toLowerCase().includes("deadrun") || tripTitle.toLowerCase().includes("depot");
@@ -721,7 +754,7 @@
       });
     }
 
-    function handleMapSelection() {
+    window.handleMapSelection = function() {
       const mapName = document.getElementById('select-map').value;
       const selectRoute = document.getElementById('select-route');
       
@@ -740,13 +773,15 @@
         }
         updateRunningBoardHeader();
 
-        Object.keys(mapsStore[mapName].routes).forEach(rKey => {
-          selectRoute.innerHTML += `<option value="${rKey}">${mapsStore[mapName].routes[rKey].name}</option>`;
-        });
+        if (mapsStore[mapName].routes) {
+          Object.keys(mapsStore[mapName].routes).forEach(rKey => {
+            selectRoute.innerHTML += `<option value="${rKey}">${mapsStore[mapName].routes[rKey].name}</option>`;
+          });
+        }
       }
-    }
+    };
 
-    function handleRouteSelection() {
+    window.handleRouteSelection = function() {
       const mapName = document.getElementById('select-map').value;
       const rKey = document.getElementById('select-route').value;
       const selectDir = document.getElementById('select-direction');
@@ -760,9 +795,9 @@
           selectDir.innerHTML += `<option value="${d}">${d}</option>`;
         });
       }
-    }
+    };
 
-    function handleDirectionSelection() {
+    window.handleDirectionSelection = function() {
       const mapName = document.getElementById('select-map').value;
       const rKey = document.getElementById('select-route').value;
       const dest = document.getElementById('select-direction').value;
@@ -778,9 +813,9 @@
         });
         document.getElementById('btn-add-scheduled').disabled = false;
       }
-    }
+    };
 
-    function addSelectedScheduledTrip() {
+    window.addSelectedScheduledTrip = function() {
       const mapName = document.getElementById('select-map').value;
       const rKey = document.getElementById('select-route').value;
       const dest = document.getElementById('select-direction').value;
@@ -790,17 +825,17 @@
         const trip = mapsStore[mapName].routes[rKey].trips.filter(t => t.destination === dest)[idx];
         if (trip) {
           activeRunningBoard.push({ ...trip });
-          renderRunningBoardTable();
+          pushBoardToCloud();
         }
       }
-    }
+    };
 
     // Modal & Edit Operations
-    function openManualTripModal() { document.getElementById('modal-manual-trip').classList.remove('hidden'); }
-    function openDeadrunModal() { document.getElementById('modal-deadrun').classList.remove('hidden'); }
-    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    window.openManualTripModal = function() { document.getElementById('modal-manual-trip').classList.remove('hidden'); };
+    window.openDeadrunModal = function() { document.getElementById('modal-deadrun').classList.remove('hidden'); };
+    window.closeModal = function(id) { document.getElementById(id).classList.add('hidden'); };
 
-    function openEditTripModal(idx) {
+    window.openEditTripModal = function(idx) {
       const item = activeRunningBoard[idx];
       if (!item) return;
 
@@ -813,9 +848,9 @@
       document.getElementById('edit-notes').value = item.notes || '';
 
       document.getElementById('modal-edit-trip').classList.remove('hidden');
-    }
+    };
 
-    function saveTripEdit(e) {
+    window.saveTripEdit = function(e) {
       e.preventDefault();
       const idx = parseInt(document.getElementById('edit-trip-index').value);
       if (isNaN(idx) || !activeRunningBoard[idx]) return;
@@ -827,11 +862,11 @@
       activeRunningBoard[idx].arrTime = document.getElementById('edit-arrtime').value;
       activeRunningBoard[idx].notes = document.getElementById('edit-notes').value;
 
-      renderRunningBoardTable();
+      pushBoardToCloud();
       closeModal('modal-edit-trip');
-    }
+    };
 
-    function saveManualTrip(e) {
+    window.saveManualTrip = function(e) {
       e.preventDefault();
       activeRunningBoard.push({
         type: 'Revenue',
@@ -842,12 +877,12 @@
         arrTime: document.getElementById('manual-arrtime').value,
         notes: document.getElementById('manual-notes').value || 'Manual entry'
       });
-      renderRunningBoardTable();
+      pushBoardToCloud();
       closeModal('modal-manual-trip');
       e.target.reset();
-    }
+    };
 
-    function saveDeadrun(e) {
+    window.saveDeadrun = function(e) {
       e.preventDefault();
       activeRunningBoard.push({
         type: 'Deadrun',
@@ -858,17 +893,17 @@
         arrTime: document.getElementById('deadrun-arrtime').value,
         notes: 'Out of service positioning'
       });
-      renderRunningBoardTable();
+      pushBoardToCloud();
       closeModal('modal-deadrun');
       e.target.reset();
-    }
+    };
 
-    function adjustDeadrunTime(mins) {
+    window.adjustDeadrunTime = function(mins) {
       const depEl = document.getElementById('deadrun-deptime');
       const arrEl = document.getElementById('deadrun-arrtime');
       if (depEl.value) depEl.value = shiftTime(depEl.value, mins);
       if (arrEl.value) arrEl.value = shiftTime(arrEl.value, mins);
-    }
+    };
 
     function shiftTime(timeStr, mins) {
       const [h, m] = timeStr.split(':').map(Number);
@@ -877,11 +912,11 @@
     }
 
     // Render Table & Header
-    function updateRunningBoardHeader() {
+    window.updateRunningBoardHeader = function() {
       document.getElementById('board-display-duty').innerText = document.getElementById('duty-no').value || '---';
       document.getElementById('board-display-depot').innerText = document.getElementById('duty-depot').value || '---';
       document.getElementById('board-display-bus').innerText = document.getElementById('duty-bus').value || '---';
-    }
+    };
 
     function renderRunningBoardTable() {
       const tbody = document.getElementById('board-table-body');
@@ -893,7 +928,6 @@
         return;
       }
 
-      // Auto-sort chronologically by departure time
       activeRunningBoard.sort((a, b) => a.depTime.localeCompare(b.depTime));
 
       activeRunningBoard.forEach((item, index) => {
@@ -925,17 +959,17 @@
       lucide.createIcons();
     }
 
-    function removeBoardItem(idx) {
+    window.removeBoardItem = function(idx) {
       activeRunningBoard.splice(idx, 1);
-      renderRunningBoardTable();
-    }
+      pushBoardToCloud();
+    };
 
-    function clearCurrentBoard() {
+    window.clearCurrentBoard = function() {
       if (confirm('Clear all items from the current running board?')) {
         activeRunningBoard = [];
-        renderRunningBoardTable();
+        pushBoardToCloud();
       }
-    }
+    };
 
     function renderDatabaseTable() {
       const tbody = document.getElementById('database-table-body');
@@ -949,9 +983,11 @@
 
       keys.forEach(k => {
         const map = mapsStore[k];
-        const routeCount = Object.keys(map.routes).length;
+        const routeCount = map.routes ? Object.keys(map.routes).length : 0;
         let totalTrips = 0;
-        Object.keys(map.routes).forEach(r => totalTrips += map.routes[r].trips.length);
+        if (map.routes) {
+          Object.keys(map.routes).forEach(r => totalTrips += (map.routes[r].trips ? map.routes[r].trips.length : 0));
+        }
 
         tbody.innerHTML += `
           <tr>
@@ -970,21 +1006,15 @@
       lucide.createIcons();
     }
 
-    function deleteMap(name) {
-      if (confirm(`Delete map profile "${name}" and all associated schedules?`)) {
+    window.deleteMap = function(name) {
+      if (confirm(`Delete map profile "${name}" and all associated schedules from cloud storage?`)) {
         delete mapsStore[name];
-        saveMapsStore();
-        refreshMapDropdowns();
-        renderDatabaseTable();
+        pushMapsToCloud();
       }
-    }
-
-    function saveMapsStore() {
-      localStorage.setItem('rb_maps_store', JSON.stringify(mapsStore));
-    }
+    };
 
     // PDF Export
-    function exportToPDF() {
+    window.exportToPDF = function() {
       const element = document.getElementById('printable-board');
       const opt = {
         margin:       [0.3, 0.3, 0.3, 0.3],
@@ -994,7 +1024,7 @@
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
       };
       html2pdf().set(opt).from(element).save();
-    }
+    };
   </script>
 </body>
 </html>
