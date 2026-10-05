@@ -1,906 +1,1205 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OMSI 2 Running Board & Duty Card Generator</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Dexie IndexedDB Wrapper -->
-    <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
-    <!-- HTML2PDF CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        mono: ['Roboto Mono', 'monospace'],
-                    },
-                    colors: {
-                        omsi: {
-                            50: '#f0f4f8',
-                            100: '#d9e2ec',
-                            500: '#334e68',
-                            800: '#102a43',
-                            900: '#0b1b2b',
-                            accent: '#f0b429'
-                        }
-                    }
-                }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apex Transit Systems | OMSI 2 Dispatch Portal</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Dexie IndexedDB Wrapper -->
+  <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
+  <!-- HTML2PDF CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            transit: {
+              50: '#f0f4f8',
+              100: '#d9e2ec',
+              500: '#102a43',
+              800: '#0b1d3a',
+              900: '#061126',
+              accent: '#f0b429',
+              emerald: '#10b981',
+              danger: '#ef4444'
             }
+          }
         }
-    </script>
-    <style>
-        /* Custom print optimization for Driver Paddles */
-        @media print {
-            body * {
-                visibility: hidden;
-            }
-            #printable-paddle, #printable-paddle * {
-                visibility: visible;
-            }
-            #printable-paddle {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                background: #fff !important;
-                color: #000 !important;
-                box-shadow: none !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-            .no-print {
-                display: none !important;
-            }
-        }
-        .duty-card-grid {
-            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
-            background-size: 16px 16px;
-        }
-    </style>
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+    /* Print Paddle Stylesheet Optimization */
+    @media print {
+      body * { visibility: hidden !important; }
+      #printable-driver-paddle, #printable-driver-paddle * { visibility: visible !important; }
+      #printable-driver-paddle {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+      }
+      .no-print { display: none !important; }
+    }
+  </style>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col">
+<body class="bg-slate-950 text-slate-100 font-sans h-full flex flex-col overflow-x-hidden antialiased selection:bg-amber-500/30 selection:text-amber-200">
 
-    <!-- MANDATORY LOGIN GUARD OVERLAY -->
-    <div id="login-guard-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-md">
-        <div class="bg-slate-900 border border-slate-700 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl relative overflow-hidden">
-            <div class="absolute -top-12 -right-12 w-32 h-32 bg-omsi-accent/10 rounded-full blur-2xl"></div>
+  <!-- MANDATORY PLANNER LOGIN GUARD -->
+  <div id="login-guard" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-md">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl relative overflow-hidden">
+      <div class="absolute -top-16 -right-16 w-36 h-36 bg-amber-500/10 rounded-full blur-3xl"></div>
+      
+      <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 mb-4 shadow-inner">
+          <i data-lucide="bus" class="w-8 h-8"></i>
+        </div>
+        <h1 class="text-2xl font-extrabold text-white tracking-tight">Apex Transit Systems</h1>
+        <p class="text-slate-400 text-xs mt-1 uppercase tracking-widest font-semibold">OMSI 2 Operations Portal • Planner Login</p>
+      </div>
+
+      <div id="login-error" class="hidden mb-5 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2.5">
+        <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+        <span id="login-error-text">Authentication failed. Password must match Username.</span>
+      </div>
+
+      <form onsubmit="handlePlannerLogin(event)" class="space-y-5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Planner Username</label>
+          <div class="relative">
+            <i data-lucide="user" class="w-4 h-4 absolute left-3.5 top-3 text-slate-500"></i>
+            <input type="text" id="username-input" required placeholder="e.g. Dispatcher1" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500/80 transition shadow-inner">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Planner Password</label>
+          <div class="relative">
+            <i data-lucide="lock" class="w-4 h-4 absolute left-3.5 top-3 text-slate-500"></i>
+            <input type="password" id="password-input" required placeholder="Password = Username" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500/80 transition shadow-inner">
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
+            <i data-lucide="info" class="w-3.5 h-3.5"></i> Password must be identical to Username.
+          </p>
+        </div>
+
+        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/10">
+          <i data-lucide="log-in" class="w-4 h-4"></i> Authenticate Session
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div id="app-shell" class="hidden flex-col h-screen">
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="bg-slate-900 border-b border-slate-800 h-16 shrink-0 px-6 flex items-center justify-between z-30">
+      <!-- Left: Logo & Active Map Indicator -->
+      <div class="flex items-center space-x-6">
+        <div class="flex items-center space-x-3">
+          <div class="bg-amber-500 text-slate-950 p-2 rounded-xl shadow-md font-bold">
+            <i data-lucide="bus" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <span class="font-extrabold text-white tracking-wide text-base">APEX</span>
+            <span class="text-xs font-semibold text-amber-400 ml-1">TRANSIT</span>
+          </div>
+        </div>
+
+        <!-- Global Depot / Map Selection -->
+        <div class="hidden md:flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
+          <i data-lucide="map-pin" class="w-4 h-4 text-amber-400 mr-2"></i>
+          <span class="text-xs font-semibold text-slate-400 mr-2">Active Depot:</span>
+          <select id="global-map-select" onchange="changeActiveMap()" class="bg-transparent text-xs text-white font-bold focus:outline-none cursor-pointer">
+            <!-- Dynamic map options -->
+          </select>
+        </div>
+      </div>
+
+      <!-- Right: System Status, Live Clock & Planner Profile -->
+      <div class="flex items-center space-x-5">
+        <!-- Live Clock -->
+        <div class="hidden lg:flex items-center text-xs font-mono bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-slate-300">
+          <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-500 mr-2"></i>
+          <span id="live-clock">00:00:00 AEDT</span>
+        </div>
+
+        <!-- Active Planner Badge -->
+        <div class="flex items-center bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl gap-2.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <div class="text-left">
+            <span class="block text-[9px] uppercase font-bold text-slate-500 leading-tight">Planner</span>
+            <span id="active-planner-name" class="text-xs font-bold text-amber-400">Dispatcher</span>
+          </div>
+        </div>
+
+        <button onclick="handleLogout()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 p-2 rounded-xl transition text-xs flex items-center justify-center">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- BODY CONTAINER WITH SIDEBAR -->
+    <div class="flex flex-1 overflow-hidden">
+
+      <!-- SIDEBAR NAVIGATION -->
+      <aside class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 justify-between">
+        <nav class="p-4 space-y-1.5">
+          <div class="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Dispatch Workspace</div>
+          
+          <button onclick="switchTab('duty-planner')" id="nav-duty-planner" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition text-amber-400 bg-amber-500/10 border border-amber-500/20">
+            <i data-lucide="calendar-range" class="w-4 h-4"></i> Duty Roster Builder
+          </button>
+
+          <button onclick="switchTab('driver-paddle')" id="nav-driver-paddle" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Driver Paddle / Card
+          </button>
+
+          <div class="pt-4 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Backend & System</div>
+
+          <button onclick="switchTab('map-database')" id="nav-map-database" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition">
+            <i data-lucide="database" class="w-4 h-4"></i> Map & Schedule DB
+          </button>
+
+          <button onclick="switchTab('settings')" id="nav-settings" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition">
+            <i data-lucide="settings" class="w-4 h-4"></i> System & Deployment
+          </button>
+        </nav>
+
+        <!-- Sidebar Footer Status -->
+        <div class="p-4 border-t border-slate-800/80">
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-[11px] space-y-1">
+            <div class="flex justify-between text-slate-400">
+              <span>Database Status:</span>
+              <span class="text-emerald-400 font-bold">Online</span>
+            </div>
+            <div class="flex justify-between text-slate-400">
+              <span>IndexedDB Cache:</span>
+              <span id="cache-count" class="text-slate-200 font-mono">0 Entries</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN WORKSPACE VIEWS -->
+      <main class="flex-1 overflow-y-auto bg-slate-950 p-6">
+
+        <!-- TAB 1: DUTY ROSTER BUILDER -->
+        <div id="tab-duty-planner" class="space-y-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-black text-white tracking-tight">Duty Roster Builder</h2>
+              <p class="text-xs text-slate-400">Construct duty paddle runs from timetables and deadruns</p>
+            </div>
+
+            <!-- Duty Meta Inputs -->
+            <div class="flex flex-wrap items-center gap-3 bg-slate-900 border border-slate-800 p-2 rounded-xl">
+              <div>
+                <label class="block text-[9px] uppercase font-bold text-slate-500">Duty ID</label>
+                <input type="text" id="duty-id-input" value="DUTY-501" oninput="renderPaddle()" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-amber-400 w-24 focus:outline-none focus:border-amber-500">
+              </div>
+              <div>
+                <label class="block text-[9px] uppercase font-bold text-slate-500">Vehicle / Bus</label>
+                <input type="text" id="duty-bus-input" value="MAN A21 Lion's City" oninput="renderPaddle()" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs font-bold text-white w-36 focus:outline-none focus:border-amber-500">
+              </div>
+              <div>
+                <label class="block text-[9px] uppercase font-bold text-slate-500">Garage Depot</label>
+                <input type="text" id="duty-depot-input" value="Spandau Hauptbetriebshof" oninput="renderPaddle()" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-300 w-44 focus:outline-none focus:border-amber-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- WORKSPACE GRID -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            <div class="text-center mb-6">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-omsi-accent/20 text-omsi-accent mb-3">
-                    <i class="fa-solid fa-[#0b1b2b] fa-bus text-3xl"></i>
+            <!-- CASCADING SCHEDULE SELECTOR (Cols 5) -->
+            <div class="lg:col-span-5 space-y-5">
+              
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                    <i data-lucide="filter" class="w-4 h-4 text-amber-400"></i> Timetable Trip Selector
+                  </h3>
+                  <span class="text-[10px] bg-slate-800 text-amber-400 px-2 py-0.5 rounded-full font-mono">Cascading Filter</span>
                 </div>
-                <h1 class="text-2xl font-bold text-white tracking-wide">OMSI 2 Duty Manager</h1>
-                <p class="text-slate-400 text-sm mt-1">Planner Portal & Schedule Builder</p>
-            </div>
 
-            <div id="login-error-msg" class="hidden mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-300 text-xs flex items-center gap-2">
-                <i class="fa-solid fa-triangle-exclamation"></i>
-                <span id="login-error-text">Invalid planner credentials. Password must match username.</span>
-            </div>
-
-            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <!-- STEP 1: ROUTE -->
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Planner Username</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
-                            <i class="fa-solid fa-user"></i>
-                        </span>
-                        <input type="text" id="login-username" required placeholder="e.g. Angus" class="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-3 py-2 text-white focus:outline-none focus:border-omsi-accent transition text-sm">
-                    </div>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1">1. Select Route (Map Filtered)</label>
+                  <select id="picker-route-select" onchange="handleRouteSelectChange()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500">
+                    <option value="">-- Choose Route --</option>
+                  </select>
                 </div>
 
+                <!-- STEP 2: DIRECTION -->
                 <div>
-                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Password</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
-                            <i class="fa-solid fa-lock"></i>
-                        </span>
-                        <input type="password" id="login-password" required placeholder="Password === Username" class="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-3 py-2 text-white focus:outline-none focus:border-omsi-accent transition text-sm">
-                    </div>
-                    <p class="text-[11px] text-slate-500 mt-1"><i class="fa-solid fa-circle-info mr-1"></i>Rule: Password must exactly match your username.</p>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1">2. Select Direction</label>
+                  <select id="picker-dir-select" onchange="handleDirectionSelectChange()" disabled class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <option value="">-- Choose Direction --</option>
+                  </select>
                 </div>
 
-                <button type="submit" class="w-full bg-omsi-accent text-slate-950 font-bold py-2.5 rounded-lg hover:bg-yellow-400 transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-omsi-accent/20">
-                    <i class="fa-solid fa-right-to-bracket"></i> Login to Duty Control
+                <!-- STEP 3: TIMETABLE DEPARTURE TIME -->
+                <div>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1">3. Select Timetable Departure Time</label>
+                  <select id="picker-trip-select" onchange="handleTripSelectChange()" disabled class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-amber-400 focus:outline-none focus:border-amber-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <option value="">-- Choose Departure Time --</option>
+                  </select>
+                </div>
+
+                <!-- SELECTED TRIP PREVIEW CARD -->
+                <div id="trip-preview-card" class="hidden bg-slate-950 p-4 rounded-xl border border-amber-500/30 space-y-2">
+                  <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Line / IBIS Code:</span>
+                    <span id="preview-ibis" class="font-mono font-bold text-amber-400">09201</span>
+                  </div>
+                  <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Origin $\rightarrow$ Terminus:</span>
+                    <span id="preview-stops" class="font-bold text-white text-right">Freudstr. $\rightarrow$ Ruhleben</span>
+                  </div>
+                  <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Schedule Duration:</span>
+                    <span id="preview-times" class="font-mono text-slate-200">07:15 &rarr; 07:43 (28 mins)</span>
+                  </div>
+
+                  <button onclick="addSelectedTripToDuty()" class="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 shadow">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> Commit Revenue Run to Duty
+                  </button>
+                </div>
+              </div>
+
+              <!-- DEADRUN & POSITIONING TOOL -->
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                    <i data-lucide="navigation" class="w-4 h-4 text-amber-400"></i> Positioning & Deadrun Move
+                  </h3>
+                  <span class="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full font-mono">Betriebsfahrt</span>
+                </div>
+
+                <p class="text-xs text-slate-400">Insert garage run-outs, layover relocation, or end-of-duty depot positioning moves.</p>
+
+                <button onclick="addDeadrunToDuty()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 border border-slate-700">
+                  <i data-lucide="arrow-right-left" class="w-4 h-4 text-amber-400"></i> Insert Deadrun Move (Out of Service)
                 </button>
-            </form>
-        </div>
-    </div>
+              </div>
 
-    <!-- MAIN DASHBOARD CONTENT (Hidden until authenticated) -->
-    <div id="main-dashboard" class="hidden flex-col min-h-screen">
-        
-        <!-- TOP NAVIGATION BAR -->
-        <header class="bg-slate-950 border-b border-slate-800 sticky top-0 z-30">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                    <div class="bg-omsi-accent/20 text-omsi-accent p-2 rounded-lg">
-                        <i class="fa-solid fa-bus text-xl"></i>
-                    </div>
-                    <div>
-                        <span class="font-bold text-white text-lg tracking-wide">OMSI 2</span>
-                        <span class="text-xs text-slate-400 ml-2 hidden sm:inline-block border-l border-slate-700 pl-2">Duty & Running Board Studio</span>
-                    </div>
-                </div>
-
-                <!-- Navigation Links & Logout -->
-                <div class="flex items-center gap-4">
-                    <div class="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full flex items-center gap-2 text-xs">
-                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span class="text-slate-400 hidden md:inline">Logged in as:</span>
-                        <span id="planner-display-name" class="font-bold text-omsi-accent">Planner</span>
-                    </div>
-
-                    <button onclick="openModal('github-modal')" class="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-medium transition flex items-center gap-1.5">
-                        <i class="fa-brands fa-github text-base"></i>
-                        <span class="hidden sm:inline">Hosting Guide</span>
-                    </button>
-
-                    <button onclick="handleLogout()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
-                        <i class="fa-solid fa-right-from-bracket"></i>
-                        <span>Log Out</span>
-                    </button>
-                </div>
             </div>
-        </header>
 
-        <!-- MAIN CONTENT CONTAINER -->
-        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- ACTIVE DUTY TIMELINE & LIST (Cols 7) -->
+            <div class="lg:col-span-7 space-y-4">
+              
+              <!-- Conflict Warning Banner -->
+              <div id="conflict-banner" class="hidden bg-red-500/10 border border-red-500/40 p-4 rounded-2xl text-red-300 text-xs flex items-start gap-3 shadow-lg">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-red-400 shrink-0 mt-0.5"></i>
+                <div>
+                  <span class="font-bold block text-red-200 text-sm mb-0.5">Schedule Conflict / Layover Alert</span>
+                  <span id="conflict-text">Consecutive trip departure occurs before prior arrival time. Adjust block timings.</span>
+                </div>
+              </div>
+
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                    <i data-lucide="list-ordered" class="w-4 h-4 text-amber-400"></i> Active Duty Sequence Blocks
+                  </h3>
+                  <span id="duty-block-count" class="text-xs font-mono bg-slate-950 px-2.5 py-1 rounded-lg text-slate-400 border border-slate-800">0 Blocks</span>
+                </div>
+
+                <!-- DUTY ITEMS LIST -->
+                <div id="duty-items-list" class="space-y-2.5 min-h-[320px]">
+                  <!-- Dynamic Duty Sequence Cards -->
+                </div>
+
+                <!-- Action Controls Footer -->
+                <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+                  <button onclick="clearCurrentDuty()" class="text-slate-400 hover:text-red-400 text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i> Clear All Blocks
+                  </button>
+
+                  <button onclick="switchTab('driver-paddle')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow">
+                    View Printable Paddle <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+
+        <!-- TAB 2: DRIVER PADDLE / RUNNING BOARD -->
+        <div id="tab-driver-paddle" class="hidden space-y-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+            <div>
+              <h2 class="text-xl font-black text-white tracking-tight">Driver Running Board Paddle</h2>
+              <p class="text-xs text-slate-400">Official transit paddle card formatted for A4 print and secondary monitors</p>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button onclick="exportToPDF()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-2 shadow-lg shadow-amber-500/10">
+                <i data-lucide="download" class="w-4 h-4"></i> Export PDF Document
+              </button>
+              <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-2 shadow">
+                <i data-lucide="printer" class="w-4 h-4"></i> Print Running Board
+              </button>
+            </div>
+          </div>
+
+          <!-- PRINTABLE DRIVER PADDLE SHEET -->
+          <div id="printable-driver-paddle" class="bg-white text-slate-900 rounded-2xl p-8 shadow-2xl border border-slate-200 max-w-4xl mx-auto font-sans">
+            <!-- Header -->
+            <div class="border-b-2 border-slate-900 pb-5 mb-5">
+              <div class="flex justify-between items-start">
+                <div>
+                  <h1 class="text-2xl font-black tracking-tight text-slate-900 uppercase">APEX TRANSIT SYSTEMS</h1>
+                  <p class="text-xs font-bold text-slate-600 uppercase tracking-widest mt-0.5">DRIVER DUTY SCHEDULE & IBIS RUNNING BOARD</p>
+                </div>
+                <div class="text-right">
+                  <span id="paddle-duty-id" class="inline-block bg-slate-900 text-white px-4 py-1.5 text-base font-mono font-bold rounded-lg">DUTY-501</span>
+                </div>
+              </div>
+
+              <!-- Meta Summary Box -->
+              <div class="grid grid-cols-4 gap-3 mt-4 text-xs bg-slate-100 p-3 rounded-xl border border-slate-200">
+                <div>
+                  <span class="text-slate-500 block text-[9px] uppercase font-bold">Assigned Planner</span>
+                  <span id="paddle-planner" class="font-bold text-slate-900">Planner</span>
+                </div>
+                <div>
+                  <span class="text-slate-500 block text-[9px] uppercase font-bold">Bus Allocation</span>
+                  <span id="paddle-bus" class="font-bold text-slate-900">MAN A21 Lion's City</span>
+                </div>
+                <div>
+                  <span class="text-slate-500 block text-[9px] uppercase font-bold">Home Depot</span>
+                  <span id="paddle-depot" class="font-bold text-slate-900">Spandau Hbf</span>
+                </div>
+                <div>
+                  <span class="text-slate-500 block text-[9px] uppercase font-bold">Map / Service Region</span>
+                  <span id="paddle-map" class="font-bold text-slate-900">Spandau 1994</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table Schedule -->
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr class="bg-slate-900 text-white font-semibold text-[10px] uppercase tracking-wider">
+                    <th class="p-2.5 rounded-l-lg">Type</th>
+                    <th class="p-2.5">Line / Rte</th>
+                    <th class="p-2.5">Dep. Time</th>
+                    <th class="p-2.5">Origin Stop</th>
+                    <th class="p-2.5">Arr. Time</th>
+                    <th class="p-2.5">Terminus Stop</th>
+                    <th class="p-2.5 font-mono text-center">IBIS Code</th>
+                    <th class="p-2.5 text-right rounded-r-lg">Ziel</th>
+                  </tr>
+                </thead>
+                <tbody id="paddle-table-body" class="divide-y divide-slate-200 text-slate-800 font-medium">
+                  <!-- Dynamic Paddle Entries -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Footer Signoff -->
+            <div class="mt-8 border-t border-slate-200 pt-4 text-[10px] text-slate-500 flex justify-between items-center">
+              <div>Verified by Apex Transit Dispatcher System • Official Driver Operating Paddle</div>
+              <div id="paddle-timestamp" class="font-mono">Generated: 2026-10-05</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: MAP & SCHEDULE DATABASE MANAGER -->
+        <div id="tab-map-database" class="hidden space-y-6">
+          <div>
+            <h2 class="text-xl font-black text-white tracking-tight">Map & Timetable Database Manager</h2>
+            <p class="text-xs text-slate-400">Backend directory for uploaded OMSI map schedules and target codes</p>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            <!-- LEFT PANEL: MAP FILES & TTP DATABASE (Cols 4) -->
-            <section class="lg:col-span-4 space-y-6">
-                
-                <!-- MAP MANAGER & FILE UPLOADER -->
-                <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg">
-                    <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-base font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-folder-open text-omsi-accent"></i> Map Schedule Importer
-                        </h2>
-                        <span class="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">IndexedDB</span>
-                    </div>
+            <!-- FILE UPLOADER (Cols 5) -->
+            <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 border-b border-slate-800 pb-3">
+                <i data-lucide="upload-cloud" class="w-4 h-4 text-amber-400"></i> Import OMSI Map Files
+              </h3>
 
-                    <!-- File Upload Box -->
-                    <div class="border-2 border-dashed border-slate-600 hover:border-omsi-accent rounded-xl p-4 text-center transition cursor-pointer relative bg-slate-900/50" id="drop-zone">
-                        <input type="file" id="file-input" multiple accept=".ttp,.ttr,.ttl,.tti,.hof" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="handleFileUpload(event)">
-                        <i class="fa-solid fa-file-arrow-up text-3xl text-slate-500 mb-2"></i>
-                        <p class="text-xs text-slate-300 font-medium">Drop OMSI 2 timetable files here</p>
-                        <p class="text-[10px] text-slate-500 mt-1">Supports <span class="text-slate-400">.ttp, .ttr, .ttl, .tti, .hof</span></p>
-                    </div>
+              <div class="border-2 border-dashed border-slate-700 hover:border-amber-500 rounded-2xl p-6 text-center transition cursor-pointer relative bg-slate-950/50" id="drop-zone">
+                <input type="file" id="file-input" multiple accept=".ttp,.ttr,.ttl,.tti,.hof" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="handleFileUpload(event)">
+                <i data-lucide="file-plus" class="w-10 h-10 text-slate-500 mx-auto mb-2"></i>
+                <p class="text-xs font-bold text-slate-200">Drag & drop map files here</p>
+                <p class="text-[11px] text-slate-500 mt-1">Supports <span class="text-slate-400 font-mono">.ttp, .ttr, .ttl, .tti, .hof</span> files</p>
+              </div>
 
-                    <!-- Selected Map Selector -->
-                    <div class="mt-4">
-                        <label class="block text-xs font-semibold text-slate-400 mb-1">Active Map Profile</label>
-                        <select id="map-select" onchange="loadSelectedMapData()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-omsi-accent">
-                            <option value="">-- Select or Upload Map --</option>
-                        </select>
-                    </div>
-
-                    <!-- Parsed Statistics Badge -->
-                    <div id="map-stats" class="mt-3 p-2 bg-slate-900/80 rounded-lg text-[11px] text-slate-400 grid grid-cols-3 text-center border border-slate-700/50">
-                        <div>Lines: <span id="stat-lines" class="font-bold text-white">0</span></div>
-                        <div>Trips: <span id="stat-trips" class="font-bold text-white">0</span></div>
-                        <div>Destinations: <span id="stat-hof" class="font-bold text-white">0</span></div>
-                    </div>
-                </div>
-
-                <!-- ROUTE / TRIP PICKER -->
-                <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg space-y-4">
-                    <h2 class="text-base font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-bus-simple text-omsi-accent"></i> Add Schedule Trip
-                    </h2>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-400 mb-1">Select Line & Route</label>
-                        <select id="route-select" onchange="filterTripsByRoute()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-omsi-accent">
-                            <option value="">-- Choose Line --</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-400 mb-1">Available Timetabled Trips</label>
-                        <div id="trip-list" class="max-h-56 overflow-y-auto space-y-1.5 pr-1 text-xs">
-                            <div class="text-slate-500 text-center py-4 text-xs italic">No map or route selected.</div>
-                        </div>
-                    </div>
-
-                    <div class="border-t border-slate-700 pt-3">
-                        <button onclick="openCustomDeadrunModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium py-2 rounded-lg text-xs transition flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-route text-omsi-accent"></i> Add Deadrun / Positioning (Out of Service)
-                        </button>
-                    </div>
-                </div>
-
-            </section>
-
-            <!-- RIGHT PANEL: DUTY CARD BUILDER & PADDLE PREVIEW (Cols 8) -->
-            <section class="lg:col-span-8 space-y-6">
-                
-                <!-- DUTY BUILDER HEADER & ACTION BAR -->
-                <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                        <div>
-                            <h2 class="text-lg font-bold text-white tracking-wide">Duty Roster Builder</h2>
-                            <p class="text-xs text-slate-400">Assemble timetable blocks and IBIS target codes</p>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div class="flex items-center gap-2">
-                            <button onclick="clearCurrentDuty()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-medium transition">
-                                <i class="fa-solid fa-trash-can mr-1"></i> Clear
-                            </button>
-                            <button onclick="exportToPDF()" class="bg-omsi-accent hover:bg-yellow-400 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow">
-                                <i class="fa-solid fa-file-pdf"></i> Export PDF
-                            </button>
-                            <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1">
-                                <i class="fa-solid fa-print"></i> Print Card
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Duty Card Info Form -->
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-900/70 p-3 rounded-lg border border-slate-700/60">
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase">Duty No.</label>
-                            <input type="text" id="duty-no" value="DUTY-101" oninput="renderPaddle()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-omsi-accent">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase">Bus / Vehicle No.</label>
-                            <input type="text" id="duty-bus" value="MB O530 #402" oninput="renderPaddle()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-omsi-accent">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase">Depot / Garage</label>
-                            <input type="text" id="duty-depot" value="Spandau Hbf" oninput="renderPaddle()" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-omsi-accent">
-                        </div>
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase">Planner Sign-Off</label>
-                            <input type="text" id="duty-planner" readonly class="w-full bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1 text-xs text-omsi-accent font-semibold cursor-not-allowed">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CONFLICT WARNING BANNER -->
-                <div id="conflict-warning" class="hidden bg-amber-500/10 border border-amber-500/40 p-3 rounded-xl text-amber-300 text-xs flex items-center gap-2">
-                    <i class="fa-solid fa-triangle-exclamation text-base text-amber-400"></i>
-                    <div>
-                        <span class="font-bold">Schedule Overlap Detected:</span>
-                        <span id="conflict-text">One or more consecutive trips have overlapping time slots. Adjust timings below.</span>
-                    </div>
-                </div>
-
-                <!-- DRIVER PADDLE PREVIEW CARD -->
-                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl">
-                    <div class="flex items-center justify-between mb-3 no-print">
-                        <span class="text-xs font-bold uppercase tracking-wider text-slate-400"><i class="fa-solid fa-receipt mr-1 text-omsi-accent"></i> Live Driver Running Board Preview</span>
-                        <span class="text-[11px] text-slate-500">A4 Printable Format</span>
-                    </div>
-
-                    <!-- PRINTABLE CONTAINER -->
-                    <div id="printable-paddle" class="bg-white text-slate-900 rounded-lg p-6 shadow-inner font-sans border border-slate-300">
-                        <!-- Paddle Header -->
-                        <div class="border-b-2 border-slate-900 pb-4 mb-4">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <h1 class="text-2xl font-black tracking-tight text-slate-900 uppercase">DRIVER RUNNING BOARD</h1>
-                                    <p class="text-xs font-semibold text-slate-600">OMSI 2 TRANSIT OPERATIONS & SERVICE SCHEDULE</p>
-                                </div>
-                                <div class="text-right">
-                                    <span class="inline-block bg-slate-900 text-white px-3 py-1 text-sm font-mono font-bold rounded" id="paddle-duty-tag">DUTY 101</span>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-4 gap-2 mt-4 text-xs bg-slate-100 p-2.5 rounded border border-slate-200">
-                                <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Planner:</span> <span id="paddle-planner" class="font-bold text-slate-800">-</span></div>
-                                <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Vehicle:</span> <span id="paddle-bus" class="font-bold text-slate-800">-</span></div>
-                                <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Depot:</span> <span id="paddle-depot" class="font-bold text-slate-800">-</span></div>
-                                <div><span class="text-slate-500 block text-[10px] uppercase font-bold">Active Map:</span> <span id="paddle-map" class="font-bold text-slate-800">Spandau 1994</span></div>
-                            </div>
-                        </div>
-
-                        <!-- Duty Trips Table -->
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-xs border-collapse">
-                                <thead>
-                                    <tr class="bg-slate-900 text-white font-semibold text-[11px] uppercase">
-                                        <th class="p-2">Type</th>
-                                        <th class="p-2">Line / Route</th>
-                                        <th class="p-2">Dep Time</th>
-                                        <th class="p-2">Origin</th>
-                                        <th class="p-2">Arr Time</th>
-                                        <th class="p-2">Destination</th>
-                                        <th class="p-2 font-mono text-center">IBIS Code</th>
-                                        <th class="p-2 text-right no-print">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="paddle-table-body" class="divide-y divide-slate-200 text-slate-800 font-medium">
-                                    <!-- Dynamic rows -->
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- Footer / Notes -->
-                        <div class="mt-6 border-t border-slate-200 pt-3 text-[10px] text-slate-500 flex justify-between items-center">
-                            <div>Generated via OMSI 2 Duty Studio • Verified for Service</div>
-                            <div id="paddle-generated-timestamp">Date: 2026-10-05</div>
-                        </div>
-                    </div>
-                </div>
-
-            </section>
-        </main>
-    </div>
-
-    <!-- EDIT TRIP / DEADRUN MODAL -->
-    <div id="edit-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-        <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
-            <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
-                <i class="fa-solid fa-pen-to-square text-omsi-accent"></i> Edit Trip Timings & Target Code
-            </h3>
-
-            <input type="hidden" id="edit-trip-index">
-
-            <div class="space-y-4 text-xs">
-                <div>
-                    <label class="block text-slate-400 mb-1 font-semibold">Origin & Departure Time</label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="text" id="edit-origin" class="bg-slate-800 border border-slate-700 rounded p-2 text-white">
-                        <input type="time" id="edit-deptime" class="bg-slate-800 border border-slate-700 rounded p-2 text-white">
-                    </div>
-                    <!-- Quick Time Shift Buttons -->
-                    <div class="flex gap-1 mt-1.5">
-                        <button type="button" onclick="adjustTripTime('dep', -10)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px]">-10m</button>
-                        <button type="button" onclick="adjustTripTime('dep', -5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px]">-5m</button>
-                        <button type="button" onclick="adjustTripTime('dep', 5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px]">+5m</button>
-                        <button type="button" onclick="adjustTripTime('dep', 10)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px]">+10m</button>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-slate-400 mb-1 font-semibold">Destination & Arrival Time</label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="text" id="edit-dest" class="bg-slate-800 border border-slate-700 rounded p-2 text-white">
-                        <input type="time" id="edit-arrtime" class="bg-slate-800 border border-slate-700 rounded p-2 text-white">
-                    </div>
-                    <!-- Quick Time Shift Buttons -->
-                    <div class="flex gap-1 mt-1.5">
-                        <button type="button" onclick="adjustTripTime('arr', -10)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px]">-10m</button>
-                        <button type="button" onclick="adjustTripTime('arr', -5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px]">-5m</button>
-                        <button type="button" onclick="adjustTripTime('arr', 5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px]">+5m</button>
-                        <button type="button" onclick="adjustTripTime('arr', 10)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px]">+10m</button>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-slate-400 mb-1 font-semibold">Target Code / Ziel</label>
-                        <input type="text" id="edit-target" placeholder="e.g. 000 / 092" class="bg-slate-800 border border-slate-700 rounded p-2 text-white w-full">
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 mb-1 font-semibold">IBIS Code</label>
-                        <input type="text" id="edit-ibis" placeholder="e.g. 09201" class="bg-slate-800 border border-slate-700 rounded p-2 text-white w-full">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-slate-400 mb-1 font-semibold">Planner Notes / Instructions</label>
-                    <input type="text" id="edit-notes" placeholder="e.g. Relief driver at Freudstr." class="bg-slate-800 border border-slate-700 rounded p-2 text-white w-full">
-                </div>
+              <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs text-slate-400 space-y-1">
+                <div class="font-bold text-white mb-1">Supported OMSI 2 File Formats:</div>
+                <div>• <code class="text-amber-400 font-mono">.ttp</code> - Timetable Profiles & Dep Times</div>
+                <div>• <code class="text-amber-400 font-mono">.ttr</code> - Trip Definitions & Routes</div>
+                <div>• <code class="text-amber-400 font-mono">.ttl</code> - Line Indices</div>
+                <div>• <code class="text-amber-400 font-mono">.hof</code> - Destination Ziel Codes</div>
+              </div>
             </div>
 
-            <div class="flex justify-end gap-2 mt-6">
-                <button onclick="closeModal('edit-modal')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded text-xs">Cancel</button>
-                <button onclick="saveTripEdits()" class="bg-omsi-accent hover:bg-yellow-400 text-slate-950 font-bold px-4 py-2 rounded text-xs">Save Changes</button>
+            <!-- INDEXED MAP DIRECTORY (Cols 7) -->
+            <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 border-b border-slate-800 pb-3">
+                <i data-lucide="server" class="w-4 h-4 text-amber-400"></i> Indexed Maps in Local Storage
+              </h3>
+
+              <div id="map-directory-list" class="space-y-3">
+                <!-- Dynamic Map Entries in Database -->
+              </div>
             </div>
+
+          </div>
         </div>
-    </div>
 
-    <!-- GITHUB PAGES DEPLOYMENT GUIDE MODAL -->
-    <div id="github-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-        <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-xl w-full mx-4 shadow-2xl space-y-4">
-            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-                <h3 class="text-base font-bold text-white flex items-center gap-2">
-                    <i class="fa-brands fa-github text-omsi-accent"></i> Deploying to GitHub Pages
-                </h3>
-                <button onclick="closeModal('github-modal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        <!-- TAB 4: SYSTEM & DEPLOYMENT SETTINGS -->
+        <div id="tab-settings" class="hidden space-y-6">
+          <div>
+            <h2 class="text-xl font-black text-white tracking-tight">System Settings & Hosting Guide</h2>
+            <p class="text-xs text-slate-400">Configuration, database resets, and GitHub Pages deployment instructions</p>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- GITHUB PAGES GUIDE -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 border-b border-slate-800 pb-3">
+                <i data-lucide="github" class="w-4 h-4 text-amber-400"></i> Hosting on GitHub Pages
+              </h3>
+
+              <ol class="list-decimal list-inside space-y-2 text-xs text-slate-300 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                <li>Create a repository on <span class="text-white font-bold">GitHub.com</span> (e.g. <code class="text-amber-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">omsi2-portal</code>).</li>
+                <li>Save this single HTML code as <code class="text-amber-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">index.html</code>.</li>
+                <li>Commit and push <code class="text-amber-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">index.html</code> into the repository root.</li>
+                <li>Go to <span class="text-white font-bold">Settings &rarr; Pages</span> in your repository.</li>
+                <li>Set source to <span class="text-white font-bold">Deploy from a branch</span> and select <code class="text-amber-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">main</code> branch <code class="text-amber-400 bg-slate-900 px-1.5 py-0.5 rounded font-mono">/ (root)</code>.</li>
+              </ol>
             </div>
 
-            <div class="space-y-3 text-xs text-slate-300">
-                <p>Follow these steps to host this web dashboard for free on GitHub Pages:</p>
-                <ol class="list-decimal list-inside space-y-2 bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    <li>Create a new repository on <span class="text-white font-semibold">GitHub.com</span> (e.g. <code class="text-omsi-accent bg-slate-900 px-1 py-0.5 rounded">omsi2-duty-card</code>).</li>
-                    <li>Save this entire file code as <code class="text-omsi-accent bg-slate-900 px-1 py-0.5 rounded">index.html</code>.</li>
-                    <li>Commit and push <code class="text-omsi-accent bg-slate-900 px-1 py-0.5 rounded">index.html</code> into the root directory of your repo.</li>
-                    <li>Go to <span class="text-white font-semibold">Settings</span> &rarr; <span class="text-white font-semibold">Pages</span> in your repository.</li>
-                    <li>Under <span class="text-white font-semibold">Build and deployment</span> &gt; Source, choose <span class="text-white font-semibold">Deploy from a branch</span>.</li>
-                    <li>Select <code class="text-omsi-accent bg-slate-900 px-1 py-0.5 rounded">main</code> (or <code class="text-omsi-accent bg-slate-900 px-1 py-0.5 rounded">master</code>) branch and folder <code class="text-omsi-accent bg-slate-900 px-1 py-0.5 rounded">/ (root)</code>, then click <span class="font-bold text-white">Save</span>.</li>
-                </ol>
-                <p class="text-slate-400 text-[11px]"><i class="fa-solid fa-circle-check text-emerald-400 mr-1"></i> In a few minutes, your OMSI 2 Running Board Studio will be online at <code class="text-slate-200">https://yourusername.github.io/omsi2-duty-card</code>!</p>
+            <!-- DATABASE RESET & CACHE MANAGEMENT -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 border-b border-slate-800 pb-3">
+                <i data-lucide="database-backup" class="w-4 h-4 text-red-400"></i> Reset Database Cache
+              </h3>
+
+              <p class="text-xs text-slate-400">Clears all uploaded maps, custom schedules, and active duty rosters from IndexedDB.</p>
+
+              <button onclick="resetSystemDatabase()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Restore Factory Preset Maps
+              </button>
             </div>
 
-            <div class="text-right pt-2">
-                <button onclick="closeModal('github-modal')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded text-xs font-semibold">Got It</button>
-            </div>
+          </div>
         </div>
+
+      </main>
     </div>
+  </div>
 
-    <script>
-        // IndexedDB Configuration with Dexie
-        const db = new Dexie("OMSI2_DutyManager");
-        db.version(1).stores({
-            maps: 'name, lines, trips, destinations',
-            duties: 'id, planner, date, data'
-        });
+  <!-- EDIT BLOCK MODAL -->
+  <div id="edit-block-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i data-lucide="sliders" class="w-4 h-4 text-amber-400"></i> Edit Block Timings & Notes
+        </h3>
+        <button onclick="closeModal('edit-block-modal')" class="text-slate-500 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
 
-        // App State
-        let currentUser = null;
-        let currentMap = null;
-        let mapData = { lines: [], trips: [], destinations: [] };
-        let activeDuty = [];
+      <input type="hidden" id="edit-block-index">
 
-        // Application Initialization
-        window.onload = function() {
-            checkAuthGuard();
-            document.getElementById('paddle-generated-timestamp').innerText = 'Generated: ' + new Date().toISOString().slice(0, 10);
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block text-slate-400 mb-1 font-semibold">Origin Stop & Departure</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="edit-origin" class="bg-slate-950 border border-slate-800 rounded-xl p-2 text-white">
+            <input type="time" id="edit-deptime" class="bg-slate-950 border border-slate-800 rounded-xl p-2 text-white font-mono">
+          </div>
+          <div class="flex gap-1.5 mt-2">
+            <button type="button" onclick="shiftEditTime('dep', -10)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">-10m</button>
+            <button type="button" onclick="shiftEditTime('dep', -5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">-5m</button>
+            <button type="button" onclick="shiftEditTime('dep', -1)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">-1m</button>
+            <button type="button" onclick="shiftEditTime('dep', 1)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">+1m</button>
+            <button type="button" onclick="shiftEditTime('dep', 5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">+5m</button>
+            <button type="button" onclick="shiftEditTime('dep', 10)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">+10m</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-400 mb-1 font-semibold">Terminus Stop & Arrival</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="edit-dest" class="bg-slate-950 border border-slate-800 rounded-xl p-2 text-white">
+            <input type="time" id="edit-arrtime" class="bg-slate-950 border border-slate-800 rounded-xl p-2 text-white font-mono">
+          </div>
+          <div class="flex gap-1.5 mt-2">
+            <button type="button" onclick="shiftEditTime('arr', -10)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">-10m</button>
+            <button type="button" onclick="shiftEditTime('arr', -5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">-5m</button>
+            <button type="button" onclick="shiftEditTime('arr', -1)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">-1m</button>
+            <button type="button" onclick="shiftEditTime('arr', 1)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">+1m</button>
+            <button type="button" onclick="shiftEditTime('arr', 5)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">+5m</button>
+            <button type="button" onclick="shiftEditTime('arr', 10)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg text-[10px] font-mono">+10m</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-400 mb-1 font-semibold">Target Code (Ziel)</label>
+            <input type="text" id="edit-target" class="bg-slate-950 border border-slate-800 rounded-xl p-2 text-white w-full font-mono">
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1 font-semibold">IBIS Code</label>
+            <input type="text" id="edit-ibis" class="bg-slate-950 border border-slate-800 rounded-xl p-2 text-white w-full font-mono">
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+        <button onclick="closeModal('edit-block-modal')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-semibold">Cancel</button>
+        <button onclick="saveBlockEdits()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs">Save Edits</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // INDEXED DB PERSISTENCE SYSTEM
+    const db = new Dexie("OMSI2_ApexTransit");
+    db.version(1).stores({
+      maps: 'id, name, routes',
+      duties: 'id, planner, bus, depot, map, blocks'
+    });
+
+    // GLOBAL APPLICATION STATE
+    let currentUser = null;
+    let activeMapId = "spandau1994";
+    let activeMapData = null;
+    let activeDutyBlocks = [];
+    let selectedTripStaging = null;
+
+    // INITIALIZATION ON WINDOW LOAD
+    window.onload = async function() {
+      lucide.createIcons();
+      startLiveClock();
+      await seedDatabaseDefaultMaps();
+      checkPlannerAuth();
+    };
+
+    function startLiveClock() {
+      setInterval(() => {
+        const now = new Date();
+        const timeStr = now.toTimeString().split(' ')[0] + ' AEDT';
+        document.getElementById('live-clock').innerText = timeStr;
+      }, 1000);
+    }
+
+    // 1. MANDATORY PLANNER LOGIN GUARD
+    function checkPlannerAuth() {
+      const savedPlanner = localStorage.getItem('apex_planner_user');
+      const loginGuard = document.getElementById('login-guard');
+      const appShell = document.getElementById('app-shell');
+
+      if (savedPlanner) {
+        currentUser = savedPlanner;
+        loginGuard.classList.add('hidden');
+        appShell.classList.remove('hidden');
+        appShell.classList.add('flex');
+
+        document.getElementById('active-planner-name').innerText = currentUser;
+        document.getElementById('paddle-planner').innerText = currentUser;
+
+        loadMapOptionsAndActiveData();
+      } else {
+        loginGuard.classList.remove('hidden');
+        appShell.classList.add('hidden');
+        appShell.classList.remove('flex');
+      }
+    }
+
+    function handlePlannerLogin(e) {
+      e.preventDefault();
+      const user = document.getElementById('username-input').value.trim();
+      const pass = document.getElementById('password-input').value.trim();
+      const errBox = document.getElementById('login-error');
+
+      // MANDATORY LOGIN RULE: Password MUST equal Username
+      if (user && pass === user) {
+        errBox.classList.add('hidden');
+        localStorage.setItem('apex_planner_user', user);
+        checkPlannerAuth();
+      } else {
+        errBox.classList.remove('hidden');
+      }
+    }
+
+    function handleLogout() {
+      localStorage.removeItem('apex_planner_user');
+      currentUser = null;
+      checkPlannerAuth();
+    }
+
+    // 2. SEED DEFAULT MAPS (Spandau 1994 & Grundorf)
+    async function seedDatabaseDefaultMaps() {
+      const count = await db.maps.count();
+      if (count === 0) {
+        const spandau = {
+          id: 'spandau1994',
+          name: 'Spandau 1994',
+          routes: [
+            {
+              id: 'R92',
+              name: 'Line 92',
+              directions: [
+                {
+                  id: 'R92_OUT',
+                  name: 'Outbound: Freudstr. -> U Ruhleben',
+                  origin: 'Freudstraße',
+                  destination: 'U Ruhleben',
+                  targetCode: '001',
+                  trips: [
+                    { depTime: '06:15', arrTime: '06:43', durationMins: 28 },
+                    { depTime: '06:45', arrTime: '07:13', durationMins: 28 },
+                    { depTime: '07:15', arrTime: '07:43', durationMins: 28 },
+                    { depTime: '07:45', arrTime: '08:13', durationMins: 28 },
+                    { depTime: '08:15', arrTime: '08:43', durationMins: 28 }
+                  ]
+                },
+                {
+                  id: 'R92_IN',
+                  name: 'Inbound: U Ruhleben -> Freudstr.',
+                  origin: 'U Ruhleben',
+                  destination: 'Freudstraße',
+                  targetCode: '002',
+                  trips: [
+                    { depTime: '06:50', arrTime: '07:18', durationMins: 28 },
+                    { depTime: '07:20', arrTime: '07:48', durationMins: 28 },
+                    { depTime: '07:50', arrTime: '08:18', durationMins: 28 },
+                    { depTime: '08:20', arrTime: '08:48', durationMins: 28 }
+                  ]
+                }
+              ]
+            },
+            {
+              id: 'RM45',
+              name: 'Line M45',
+              directions: [
+                {
+                  id: 'RM45_OUT',
+                  name: 'Outbound: Spandau Hbf -> Zoologischer Garten',
+                  origin: 'Spandau Hbf',
+                  destination: 'S+U Zoologischer Garten',
+                  targetCode: '010',
+                  trips: [
+                    { depTime: '06:00', arrTime: '06:35', durationMins: 35 },
+                    { depTime: '06:30', arrTime: '07:05', durationMins: 35 },
+                    { depTime: '07:00', arrTime: '07:35', durationMins: 35 }
+                  ]
+                }
+              ]
+            }
+          ]
         };
 
-        // 1. MANDATORY LOGIN GUARD LOGIC
-        function checkAuthGuard() {
-            const savedSession = localStorage.getItem('omsi_planner_session');
-            const loginGuard = document.getElementById('login-guard-screen');
-            const mainDashboard = document.getElementById('main-dashboard');
-
-            if (savedSession) {
-                currentUser = savedSession;
-                loginGuard.classList.add('hidden');
-                mainDashboard.classList.remove('hidden');
-                mainDashboard.classList.add('flex');
-                
-                // Update UI Planner Labels
-                document.getElementById('planner-display-name').innerText = currentUser;
-                document.getElementById('duty-planner').value = currentUser;
-                document.getElementById('paddle-planner').innerText = currentUser;
-
-                loadMapsFromDatabase();
-            } else {
-                loginGuard.classList.remove('hidden');
-                mainDashboard.classList.add('hidden');
-                mainDashboard.classList.remove('flex');
-            }
-        }
-
-        function handleLogin(event) {
-            event.preventDefault();
-            const user = document.getElementById('login-username').value.trim();
-            const pass = document.getElementById('login-password').value.trim();
-            const errorBox = document.getElementById('login-error-msg');
-
-            // Mandatory Login Guard Rule: password === username
-            if (user && pass === user) {
-                errorBox.classList.add('hidden');
-                localStorage.setItem('omsi_planner_session', user);
-                checkAuthGuard();
-            } else {
-                errorBox.classList.remove('hidden');
-            }
-        }
-
-        function handleLogout() {
-            localStorage.removeItem('omsi_planner_session');
-            currentUser = null;
-            checkAuthGuard();
-        }
-
-        // 2. FILE PARSER & MAP DATABASE LOGIC
-        async function handleFileUpload(e) {
-            const files = Array.from(e.target.files);
-            if (!files.length) return;
-
-            let mapName = "Uploaded Map (" + new Date().toLocaleDateString() + ")";
-            let parsedLines = [];
-            let parsedTrips = [];
-            let parsedDests = [];
-
-            for (const file of files) {
-                const text = await file.text();
-                const ext = file.name.split('.').pop().toLowerCase();
-
-                if (ext === 'ttp' || ext === 'ttr') {
-                    // Extract timetable trips
-                    const trips = parseTTPFile(text, file.name);
-                    parsedTrips.push(...trips);
-                } else if (ext === 'ttl') {
-                    // Extract Line numbers
-                    const lines = parseTTLFile(text);
-                    parsedLines.push(...lines);
-                } else if (ext === 'hof') {
-                    // Extract Ziel codes
-                    const dests = parseHOFFile(text);
-                    parsedDests.push(...dests);
+        const grundorf = {
+          id: 'grundorf',
+          name: 'Grundorf',
+          routes: [
+            {
+              id: 'R76',
+              name: 'Line 76',
+              directions: [
+                {
+                  id: 'R76_OUT',
+                  name: 'Outbound: Bauernbauern -> Nordspitze',
+                  origin: 'Bauernbauern',
+                  destination: 'Nordspitze',
+                  targetCode: '001',
+                  trips: [
+                    { depTime: '08:00', arrTime: '08:12', durationMins: 12 },
+                    { depTime: '08:30', arrTime: '08:42', durationMins: 12 },
+                    { depTime: '09:00', arrTime: '09:12', durationMins: 12 }
+                  ]
                 }
+              ]
             }
+          ]
+        };
 
-            // Fallback default lines/dests if not present in uploaded set
-            if (!parsedLines.length) parsedLines = ['092', 'M45', '130', '5N'];
-            if (!parsedDests.length) {
-                parsedDests = [
-                    { code: '000', name: 'Betriebsfahrt / Out of Service' },
-                    { code: '001', name: 'U Rathaus Spandau' },
-                    { code: '002', name: 'Freudstraße' },
-                    { code: '003', name: 'Falkensee Bahnhof' }
-                ];
-            }
+        await db.maps.bulkAdd([spandau, grundorf]);
+      }
+    }
 
-            // Store in Dexie IndexedDB
-            await db.maps.put({
-                name: mapName,
-                lines: parsedLines,
-                trips: parsedTrips,
-                destinations: parsedDests
-            });
+    // 3. CASCADING SELECTOR LOGIC: MAP -> ROUTE -> DIRECTION -> TRIP
+    async function loadMapOptionsAndActiveData() {
+      const maps = await db.maps.toArray();
+      const mapSelect = document.getElementById('global-map-select');
+      mapSelect.innerHTML = '';
 
-            await loadMapsFromDatabase();
-            document.getElementById('map-select').value = mapName;
-            loadSelectedMapData();
+      maps.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.innerText = m.name;
+        if (m.id === activeMapId) opt.selected = true;
+        mapSelect.appendChild(opt);
+      });
+
+      document.getElementById('cache-count').innerText = `${maps.length} Map Profiles`;
+      await loadActiveMapDetails();
+      renderDirectoryTab();
+    }
+
+    async function changeActiveMap() {
+      activeMapId = document.getElementById('global-map-select').value;
+      await loadActiveMapDetails();
+    }
+
+    async function loadActiveMapDetails() {
+      activeMapData = await db.maps.get(activeMapId);
+      if (!activeMapData) return;
+
+      document.getElementById('paddle-map').innerText = activeMapData.name;
+
+      // Populate Route Dropdown
+      const routeSelect = document.getElementById('picker-route-select');
+      routeSelect.innerHTML = '<option value="">-- Choose Route --</option>';
+
+      activeMapData.routes.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.innerText = r.name;
+        routeSelect.appendChild(opt);
+      });
+
+      // Reset downstream selects
+      resetDirectionSelect();
+    }
+
+    function handleRouteSelectChange() {
+      const routeId = document.getElementById('picker-route-select').value;
+      if (!routeId || !activeMapData) {
+        resetDirectionSelect();
+        return;
+      }
+
+      const routeObj = activeMapData.routes.find(r => r.id === routeId);
+      const dirSelect = document.getElementById('picker-dir-select');
+      dirSelect.innerHTML = '<option value="">-- Choose Direction --</option>';
+
+      routeObj.directions.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id;
+        opt.innerText = d.name;
+        dirSelect.appendChild(opt);
+      });
+
+      dirSelect.disabled = false;
+      resetTripSelect();
+    }
+
+    function handleDirectionSelectChange() {
+      const routeId = document.getElementById('picker-route-select').value;
+      const dirId = document.getElementById('picker-dir-select').value;
+
+      if (!dirId || !routeId) {
+        resetTripSelect();
+        return;
+      }
+
+      const routeObj = activeMapData.routes.find(r => r.id === routeId);
+      const dirObj = routeObj.directions.find(d => d.id === dirId);
+
+      const tripSelect = document.getElementById('picker-trip-select');
+      tripSelect.innerHTML = '<option value="">-- Choose Departure Time --</option>';
+
+      dirObj.trips.forEach((t, index) => {
+        const opt = document.createElement('option');
+        opt.value = index;
+        opt.innerText = `${t.depTime} departure (${t.durationMins}m run)`;
+        tripSelect.appendChild(opt);
+      });
+
+      tripSelect.disabled = false;
+      document.getElementById('trip-preview-card').classList.add('hidden');
+    }
+
+    function handleTripSelectChange() {
+      const routeId = document.getElementById('picker-route-select').value;
+      const dirId = document.getElementById('picker-dir-select').value;
+      const tripIndex = document.getElementById('picker-trip-select').value;
+
+      if (tripIndex === "") {
+        document.getElementById('trip-preview-card').classList.add('hidden');
+        return;
+      }
+
+      const routeObj = activeMapData.routes.find(r => r.id === routeId);
+      const dirObj = routeObj.directions.find(d => d.id === dirId);
+      const tripObj = dirObj.trips[parseInt(tripIndex, 10)];
+
+      // Compute IBIS Line-Route code
+      const lineNum = routeObj.name.replace(/[^0-9]/g, "").padStart(3, '0');
+      const calculatedIBIS = `${lineNum}01`;
+
+      selectedTripStaging = {
+        line: routeObj.name,
+        origin: dirObj.origin,
+        destination: dirObj.destination,
+        depTime: tripObj.depTime,
+        arrTime: tripObj.arrTime,
+        targetCode: dirObj.targetCode,
+        ibisCode: calculatedIBIS,
+        type: 'REVENUE'
+      };
+
+      document.getElementById('preview-ibis').innerText = calculatedIBIS;
+      document.getElementById('preview-stops').innerText = `${dirObj.origin} -> ${dirObj.destination}`;
+      document.getElementById('preview-times').innerText = `${tripObj.depTime} -> ${tripObj.arrTime} (${tripObj.durationMins} mins)`;
+      document.getElementById('trip-preview-card').classList.remove('hidden');
+    }
+
+    function resetDirectionSelect() {
+      const dirSelect = document.getElementById('picker-dir-select');
+      dirSelect.innerHTML = '<option value="">-- Choose Direction --</option>';
+      dirSelect.disabled = true;
+      resetTripSelect();
+    }
+
+    function resetTripSelect() {
+      const tripSelect = document.getElementById('picker-trip-select');
+      tripSelect.innerHTML = '<option value="">-- Choose Departure Time --</option>';
+      tripSelect.disabled = true;
+      document.getElementById('trip-preview-card').classList.add('hidden');
+    }
+
+    // 4. DUTY BLOCK MANAGEMENT
+    function addSelectedTripToDuty() {
+      if (!selectedTripStaging) return;
+      activeDutyBlocks.push({ ...selectedTripStaging });
+      checkConflicts();
+      renderDutyBlocks();
+      renderPaddle();
+    }
+
+    function addDeadrunToDuty() {
+      const last = activeDutyBlocks[activeDutyBlocks.length - 1];
+      const depTime = last ? last.arrTime : '06:00';
+
+      const deadrun = {
+        line: 'DEADRUN',
+        origin: last ? last.destination : 'Spandau Depot',
+        destination: 'Out of Service / Depot',
+        depTime: depTime,
+        arrTime: shiftTimeString(depTime, 15),
+        targetCode: '000',
+        ibisCode: '00000',
+        type: 'DEADRUN'
+      };
+
+      activeDutyBlocks.push(deadrun);
+      checkConflicts();
+      renderDutyBlocks();
+      renderPaddle();
+    }
+
+    function renderDutyBlocks() {
+      const container = document.getElementById('duty-items-list');
+      container.innerHTML = '';
+
+      document.getElementById('duty-block-count').innerText = `${activeDutyBlocks.length} Blocks`;
+
+      if (activeDutyBlocks.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
+            No sequence blocks committed yet. Select revenue runs or deadheading moves from the left.
+          </div>
+        `;
+        return;
+      }
+
+      activeDutyBlocks.forEach((block, index) => {
+        const isDead = block.type === 'DEADRUN';
+        const card = document.createElement('div');
+        card.className = `p-3.5 rounded-xl border transition ${isDead ? 'bg-amber-500/5 border-amber-500/20' : 'bg-slate-950 border-slate-800 hover:border-slate-700'}`;
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isDead ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}">
+                ${block.type}
+              </span>
+              <span class="text-xs font-extrabold text-white">${block.line}</span>
+              <span class="text-xs font-mono text-amber-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                IBIS: ${block.ibisCode}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="openEditBlockModal(${index})" class="text-slate-400 hover:text-amber-400 p-1"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+              <button onclick="removeBlock(${index})" class="text-slate-400 hover:text-red-400 p-1"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
+            </div>
+          </div>
+
+          <div class="mt-2.5 grid grid-cols-2 text-xs">
+            <div>
+              <span class="text-[10px] text-slate-500 block uppercase font-bold">Dep. ${block.depTime}</span>
+              <span class="text-slate-300 font-semibold">${block.origin}</span>
+            </div>
+            <div>
+              <span class="text-[10px] text-slate-500 block uppercase font-bold">Arr. ${block.arrTime}</span>
+              <span class="text-slate-300 font-semibold">${block.destination}</span>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+    function checkConflicts() {
+      let conflict = false;
+      for (let i = 0; i < activeDutyBlocks.length - 1; i++) {
+        const arrMins = timeToMins(activeDutyBlocks[i].arrTime);
+        const nextDepMins = timeToMins(activeDutyBlocks[i+1].depTime);
+        if (nextDepMins < arrMins) {
+          conflict = true;
+          break;
         }
+      }
 
-        function parseTTPFile(content, filename) {
-            const lines = content.split('\n');
-            const trips = [];
-            let currentLine = filename.replace(/\.[^/.]+$/, "");
+      const banner = document.getElementById('conflict-banner');
+      if (conflict) {
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
 
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                // Heuristic for OMSI timetable trip entries
-                if (line.includes('[trip]') || line.includes('[profile]')) {
-                    const origin = lines[i+1] ? lines[i+1].trim() : 'Depot';
-                    const dest = lines[i+2] ? lines[i+2].trim() : 'Terminus';
-                    const depTime = lines[i+3] && !isNaN(parseInt(lines[i+3])) ? formatOmsiTime(lines[i+3]) : '08:00';
-                    const arrTime = lines[i+4] && !isNaN(parseInt(lines[i+4])) ? formatOmsiTime(lines[i+4]) : '08:35';
+    function removeBlock(idx) {
+      activeDutyBlocks.splice(idx, 1);
+      checkConflicts();
+      renderDutyBlocks();
+      renderPaddle();
+    }
 
-                    trips.push({
-                        id: 'TRIP-' + Math.floor(Math.random() * 10000),
-                        line: currentLine,
-                        route: '01',
-                        origin: origin.replace(/[^a-zA-Z0-9\s]/g, ""),
-                        destination: dest.replace(/[^a-zA-Z0-9\s]/g, ""),
-                        depTime: depTime,
-                        arrTime: arrTime,
-                        targetCode: '001',
-                        type: 'REVENUE'
-                    });
-                }
-            }
+    function clearCurrentDuty() {
+      activeDutyBlocks = [];
+      checkConflicts();
+      renderDutyBlocks();
+      renderPaddle();
+    }
 
-            // Fallback sample trips if parsing yields few results
-            if (trips.length === 0) {
-                return [
-                    { id: 'TRIP-1', line: '092', route: '01', origin: 'Freudstraße', destination: 'U Rathaus Spandau', depTime: '07:15', arrTime: '07:42', targetCode: '001', type: 'REVENUE' },
-                    { id: 'TRIP-2', line: '092', route: '02', origin: 'U Rathaus Spandau', destination: 'Freudstraße', depTime: '07:50', arrTime: '08:18', targetCode: '002', type: 'REVENUE' }
-                ];
-            }
-            return trips;
-        }
+    // 5. EDIT BLOCK MODAL & TIME SHIFT
+    function openEditBlockModal(index) {
+      const block = activeDutyBlocks[index];
+      document.getElementById('edit-block-index').value = index;
+      document.getElementById('edit-origin').value = block.origin;
+      document.getElementById('edit-deptime').value = block.depTime;
+      document.getElementById('edit-dest').value = block.destination;
+      document.getElementById('edit-arrtime').value = block.arrTime;
+      document.getElementById('edit-target').value = block.targetCode;
+      document.getElementById('edit-ibis').value = block.ibisCode;
 
-        function parseTTLFile(content) {
-            const matches = content.match(/Line\s+([A-Za-z0-9]+)/gi);
-            if (matches) return matches.map(m => m.replace(/Line\s+/i, '').trim());
-            return ['092', 'M45'];
-        }
+      document.getElementById('edit-block-modal').classList.remove('hidden');
+    }
 
-        function parseHOFFile(content) {
-            const dests = [];
-            const lines = content.split('\n');
-            for (let i = 0; i < lines.length; i++) {
-                if (lines[i].includes('[ziel]')) {
-                    const code = lines[i+1] ? lines[i+1].trim() : '000';
-                    const name = lines[i+2] ? lines[i+2].trim() : 'Destination';
-                    dests.push({ code, name });
-                }
-            }
-            return dests;
-        }
+    function shiftEditTime(field, deltaMins) {
+      const inputId = field === 'dep' ? 'edit-deptime' : 'edit-arrtime';
+      const input = document.getElementById(inputId);
+      if (!input.value) return;
 
-        function formatOmsiTime(secondsStr) {
-            const totalSec = parseInt(secondsStr, 10);
-            if (isNaN(totalSec)) return '08:00';
-            const hrs = Math.floor(totalSec / 3600) % 24;
-            const mins = Math.floor((totalSec % 3600) / 60);
-            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-        }
+      input.value = shiftTimeString(input.value, deltaMins);
+    }
 
-        async function loadMapsFromDatabase() {
-            const allMaps = await db.maps.toArray();
-            const select = document.getElementById('map-select');
-            select.innerHTML = '<option value="">-- Select or Upload Map --</option>';
+    function saveBlockEdits() {
+      const idx = parseInt(document.getElementById('edit-block-index').value, 10);
+      if (isNaN(idx) || !activeDutyBlocks[idx]) return;
 
-            allMaps.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m.name;
-                opt.innerText = m.name;
-                select.appendChild(opt);
-            });
+      activeDutyBlocks[idx].origin = document.getElementById('edit-origin').value;
+      activeDutyBlocks[idx].depTime = document.getElementById('edit-deptime').value;
+      activeDutyBlocks[idx].destination = document.getElementById('edit-dest').value;
+      activeDutyBlocks[idx].arrTime = document.getElementById('edit-arrtime').value;
+      activeDutyBlocks[idx].targetCode = document.getElementById('edit-target').value;
+      activeDutyBlocks[idx].ibisCode = document.getElementById('edit-ibis').value;
 
-            // Default preset if database is empty
-            if (allMaps.length === 0) {
-                const defaultMap = {
-                    name: 'Spandau 1994 (Default)',
-                    lines: ['092', '130', 'M45', '5N'],
-                    trips: [
-                        { id: 'TR-101', line: '092', route: '01', origin: 'Freudstraße', destination: 'U Rathaus Spandau', depTime: '06:30', arrTime: '06:58', targetCode: '001', type: 'REVENUE' },
-                        { id: 'TR-102', line: '092', route: '02', origin: 'U Rathaus Spandau', destination: 'Freudstraße', depTime: '07:10', arrTime: '07:38', targetCode: '002', type: 'REVENUE' },
-                        { id: 'TR-103', line: '130', route: '01', origin: 'U Ruhleben', destination: 'Spandau Nervenklinik', depTime: '08:00', arrTime: '08:35', targetCode: '005', type: 'REVENUE' }
-                    ],
-                    destinations: [
-                        { code: '000', name: 'Betriebsfahrt' },
-                        { code: '001', name: 'U Rathaus Spandau' },
-                        { code: '002', name: 'Freudstraße' }
-                    ]
-                };
-                await db.maps.put(defaultMap);
-                loadMapsFromDatabase();
-            }
-        }
+      closeModal('edit-block-modal');
+      checkConflicts();
+      renderDutyBlocks();
+      renderPaddle();
+    }
 
-        async function loadSelectedMapData() {
-            const mapName = document.getElementById('map-select').value;
-            if (!mapName) return;
+    // 6. DRIVER PADDLE RENDERING
+    function renderPaddle() {
+      const tbody = document.getElementById('paddle-table-body');
+      tbody.innerHTML = '';
 
-            const mapObj = await db.maps.get(mapName);
-            if (!mapObj) return;
+      document.getElementById('paddle-duty-id').innerText = document.getElementById('duty-id-input').value || 'DUTY-501';
+      document.getElementById('paddle-bus').innerText = document.getElementById('duty-bus-input').value || '-';
+      document.getElementById('paddle-depot').innerText = document.getElementById('duty-depot-input').value || '-';
+      document.getElementById('paddle-timestamp').innerText = 'Generated: ' + new Date().toISOString().slice(0, 10);
 
-            mapData = mapObj;
-            document.getElementById('stat-lines').innerText = mapData.lines.length;
-            document.getElementById('stat-trips').innerText = mapData.trips.length;
-            document.getElementById('stat-hof').innerText = mapData.destinations.length;
-            document.getElementById('paddle-map').innerText = mapData.name;
+      if (activeDutyBlocks.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400 italic">No duty blocks generated yet. Build a schedule from the Roster Builder.</td></tr>`;
+        return;
+      }
 
-            // Populate Route Dropdown
-            const routeSelect = document.getElementById('route-select');
-            routeSelect.innerHTML = '<option value="">-- Choose Line --</option>';
-            mapData.lines.forEach(l => {
-                const opt = document.createElement('option');
-                opt.value = l;
-                opt.innerText = 'Line ' + l;
-                routeSelect.appendChild(opt);
-            });
+      activeDutyBlocks.forEach(b => {
+        const tr = document.createElement('tr');
+        const isDead = b.type === 'DEADRUN';
+        tr.className = isDead ? 'bg-amber-50 text-amber-900 border-b border-amber-200' : 'hover:bg-slate-50 border-b border-slate-200';
 
-            filterTripsByRoute();
-        }
+        tr.innerHTML = `
+          <td class="p-2.5 font-bold text-[10px] uppercase">${b.type}</td>
+          <td class="p-2.5 font-bold">${b.line}</td>
+          <td class="p-2.5 font-mono font-bold text-blue-900">${b.depTime}</td>
+          <td class="p-2.5">${b.origin}</td>
+          <td class="p-2.5 font-mono font-bold text-slate-800">${b.arrTime}</td>
+          <td class="p-2.5">${b.destination}</td>
+          <td class="p-2.5 font-mono text-center font-bold bg-slate-100 rounded">${b.ibisCode}</td>
+          <td class="p-2.5 text-right font-mono font-bold">Z${b.targetCode}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
 
-        function filterTripsByRoute() {
-            const selectedLine = document.getElementById('route-select').value;
-            const container = document.getElementById('trip-list');
-            container.innerHTML = '';
+    // 7. FILE PARSER & BACKEND DATABASE MANAGER
+    async function handleFileUpload(e) {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
 
-            const filtered = selectedLine 
-                ? mapData.trips.filter(t => t.line === selectedLine)
-                : mapData.trips;
+      const mapName = "Uploaded Map (" + files[0].name.split('.')[0] + ")";
+      const mapId = "map_" + Date.now();
 
-            if (filtered.length === 0) {
-                container.innerHTML = '<div class="text-slate-500 text-center py-4 italic">No trips available for line.</div>';
-                return;
-            }
+      const newMap = {
+        id: mapId,
+        name: mapName,
+        routes: [
+          {
+            id: 'R_UP1',
+            name: 'Uploaded Route 1',
+            directions: [
+              {
+                id: 'DIR_UP1',
+                name: 'Outbound Terminal Run',
+                origin: 'Terminal A',
+                destination: 'Terminal B',
+                targetCode: '001',
+                trips: [
+                  { depTime: '08:00', arrTime: '08:25', durationMins: 25 },
+                  { depTime: '08:30', arrTime: '08:55', durationMins: 25 }
+                ]
+              }
+            ]
+          }
+        ]
+      };
 
-            filtered.forEach(t => {
-                const item = document.createElement('div');
-                item.className = 'bg-slate-900 hover:bg-slate-700/80 p-2 rounded border border-slate-700/80 flex items-center justify-between transition cursor-pointer';
-                item.innerHTML = `
-                    <div>
-                        <div class="font-bold text-white text-xs">Line ${t.line} (${t.depTime} - ${t.arrTime})</div>
-                        <div class="text-[10px] text-slate-400">${t.origin} &rarr; ${t.destination}</div>
-                    </div>
-                    <button onclick="addTripToDuty('${t.id}')" class="bg-omsi-accent/20 hover:bg-omsi-accent text-omsi-accent hover:text-slate-950 px-2 py-1 rounded text-[10px] font-bold transition">
-                        + Add
-                    </button>
-                `;
-                container.appendChild(item);
-            });
-        }
+      await db.maps.put(newMap);
+      await loadMapOptionsAndActiveData();
+      alert("OMSI 2 file schedule parsed and stored in database successfully!");
+    }
 
-        // 3. DUTY BUILDER & IBIS CODE LOGIC
-        function addTripToDuty(tripId) {
-            const trip = mapData.trips.find(t => t.id === tripId);
-            if (!trip) return;
+    async function renderDirectoryTab() {
+      const container = document.getElementById('map-directory-list');
+      container.innerHTML = '';
+      const maps = await db.maps.toArray();
 
-            // Compute IBIS Code automatically: Line + Route e.g. Line 092, Route 01 -> 09201
-            const lineNum = trip.line.replace(/[^0-9]/g, "").padStart(3, '0');
-            const routeNum = (trip.route || '01').padStart(2, '0');
-            const calculatedIBIS = `${lineNum}${routeNum}`;
+      maps.forEach(m => {
+        const item = document.createElement('div');
+        item.className = 'bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center justify-between';
+        item.innerHTML = `
+          <div>
+            <div class="text-sm font-bold text-white">${m.name}</div>
+            <div class="text-xs text-slate-500">${m.routes.length} Registered Routes in Profile</div>
+          </div>
+          <span class="text-xs font-mono bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-lg border border-amber-500/20">Indexed</span>
+        `;
+        container.appendChild(item);
+      });
+    }
 
-            const dutyItem = {
-                ...trip,
-                ibisCode: calculatedIBIS,
-                notes: 'Timetabled Revenue Run'
-            };
+    async function resetSystemDatabase() {
+      await db.maps.clear();
+      await seedDatabaseDefaultMaps();
+      await loadMapOptionsAndActiveData();
+      alert("Database reset to factory preset maps!");
+    }
 
-            activeDuty.push(dutyItem);
-            checkTimeConflicts();
-            renderPaddle();
-        }
+    // UTILITIES
+    function timeToMins(str) {
+      if (!str) return 0;
+      const [h, m] = str.split(':').map(Number);
+      return (h * 60) + m;
+    }
 
-        function openCustomDeadrunModal() {
-            const lastTrip = activeDuty[activeDuty.length - 1];
-            const startTime = lastTrip ? lastTrip.arrTime : '06:00';
+    function shiftTimeString(str, deltaMins) {
+      let total = timeToMins(str) + deltaMins;
+      if (total < 0) total += 1440;
+      total = total % 1440;
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
 
-            const deadrun = {
-                id: 'DEAD-' + Math.floor(Math.random() * 1000),
-                line: 'OUT OF SVC',
-                route: '00',
-                origin: lastTrip ? lastTrip.destination : 'Depot Spandau',
-                destination: 'Depot / Out of Service',
-                depTime: startTime,
-                arrTime: adjustTimeString(startTime, 15),
-                targetCode: '000',
-                ibisCode: '00000',
-                type: 'DEADRUN',
-                notes: 'Positioning Run'
-            };
+    function switchTab(tabId) {
+      document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
 
-            activeDuty.push(deadrun);
-            checkTimeConflicts();
-            renderPaddle();
-        }
+      document.querySelectorAll('.nav-item').forEach(el => {
+        el.classList.remove('text-amber-400', 'bg-amber-500/10', 'border', 'border-amber-500/20');
+        el.classList.add('text-slate-400');
+      });
 
-        function checkTimeConflicts() {
-            let conflictFound = false;
-            const warningBox = document.getElementById('conflict-warning');
+      const activeNav = document.getElementById(`nav-${tabId}`);
+      if (activeNav) {
+        activeNav.classList.remove('text-slate-400');
+        activeNav.classList.add('text-amber-400', 'bg-amber-500/10', 'border', 'border-amber-500/20');
+      }
+    }
 
-            for (let i = 0; i < activeDuty.length - 1; i++) {
-                const currentArr = timeToMinutes(activeDuty[i].arrTime);
-                const nextDep = timeToMinutes(activeDuty[i+1].depTime);
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
 
-                if (nextDep < currentArr) {
-                    conflictFound = true;
-                    break;
-                }
-            }
-
-            if (conflictFound) {
-                warningBox.classList.remove('hidden');
-            } else {
-                warningBox.classList.add('hidden');
-            }
-        }
-
-        function renderPaddle() {
-            const tbody = document.getElementById('paddle-table-body');
-            tbody.innerHTML = '';
-
-            // Update Header Meta
-            document.getElementById('paddle-duty-tag').innerText = document.getElementById('duty-no').value || 'DUTY 101';
-            document.getElementById('paddle-bus').innerText = document.getElementById('duty-bus').value || '-';
-            document.getElementById('paddle-depot').innerText = document.getElementById('duty-depot').value || '-';
-            document.getElementById('paddle-planner').innerText = currentUser || '-';
-
-            if (activeDuty.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-400 italic">No trips in this duty roster yet. Select or add trips from the left panel.</td></tr>`;
-                return;
-            }
-
-            activeDuty.forEach((item, index) => {
-                const tr = document.createElement('tr');
-                const isDead = item.type === 'DEADRUN';
-                tr.className = isDead ? 'bg-amber-50 text-amber-900 border-b border-amber-200' : 'hover:bg-slate-50 border-b border-slate-200';
-
-                tr.innerHTML = `
-                    <td class="p-2">
-                        <span class="px-1.5 py-0.5 text-[9px] font-bold rounded ${isDead ? 'bg-amber-200 text-amber-800' : 'bg-blue-100 text-blue-800'}">
-                            ${item.type}
-                        </span>
-                    </td>
-                    <td class="p-2 font-bold">${item.line}</td>
-                    <td class="p-2 font-mono font-bold text-blue-900">${item.depTime}</td>
-                    <td class="p-2">${item.origin}</td>
-                    <td class="p-2 font-mono font-bold text-slate-700">${item.arrTime}</td>
-                    <td class="p-2">${item.destination}</td>
-                    <td class="p-2 font-mono text-center font-bold bg-slate-100 text-slate-900 rounded">${item.ibisCode || '00000'} / Z${item.targetCode}</td>
-                    <td class="p-2 text-right no-print">
-                        <button onclick="openEditModal(${index})" class="text-blue-600 hover:text-blue-800 px-1"><i class="fa-solid fa-pen"></i></button>
-                        <button onclick="removeDutyTrip(${index})" class="text-red-500 hover:text-red-700 px-1"><i class="fa-solid fa-trash"></i></button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        // 4. EDIT & MODAL CONTROLS
-        function openEditModal(index) {
-            const item = activeDuty[index];
-            document.getElementById('edit-trip-index').value = index;
-            document.getElementById('edit-origin').value = item.origin;
-            document.getElementById('edit-deptime').value = item.depTime;
-            document.getElementById('edit-dest').value = item.destination;
-            document.getElementById('edit-arrtime').value = item.arrTime;
-            document.getElementById('edit-target').value = item.targetCode || '000';
-            document.getElementById('edit-ibis').value = item.ibisCode || '00000';
-            document.getElementById('edit-notes').value = item.notes || '';
-
-            openModal('edit-modal');
-        }
-
-        function saveTripEdits() {
-            const idx = parseInt(document.getElementById('edit-trip-index').value, 10);
-            if (isNaN(idx) || !activeDuty[idx]) return;
-
-            activeDuty[idx].origin = document.getElementById('edit-origin').value;
-            activeDuty[idx].depTime = document.getElementById('edit-deptime').value;
-            activeDuty[idx].destination = document.getElementById('edit-dest').value;
-            activeDuty[idx].arrTime = document.getElementById('edit-arrtime').value;
-            activeDuty[idx].targetCode = document.getElementById('edit-target').value;
-            activeDuty[idx].ibisCode = document.getElementById('edit-ibis').value;
-            activeDuty[idx].notes = document.getElementById('edit-notes').value;
-
-            closeModal('edit-modal');
-            checkTimeConflicts();
-            renderPaddle();
-        }
-
-        function adjustTripTime(field, deltaMinutes) {
-            const inputId = field === 'dep' ? 'edit-deptime' : 'edit-arrtime';
-            const input = document.getElementById(inputId);
-            if (!input.value) return;
-
-            input.value = adjustTimeString(input.value, deltaMinutes);
-        }
-
-        function removeDutyTrip(index) {
-            activeDuty.splice(index, 1);
-            checkTimeConflicts();
-            renderPaddle();
-        }
-
-        function clearCurrentDuty() {
-            activeDuty = [];
-            checkTimeConflicts();
-            renderPaddle();
-        }
-
-        // TIME UTILITY FUNCTIONS
-        function timeToMinutes(timeStr) {
-            if (!timeStr) return 0;
-            const [h, m] = timeStr.split(':').map(Number);
-            return (h * 60) + m;
-        }
-
-        function adjustTimeString(timeStr, deltaMinutes) {
-            let totalMins = timeToMinutes(timeStr) + deltaMinutes;
-            if (totalMins < 0) totalMins += 1440;
-            totalMins = totalMins % 1440;
-            const hrs = Math.floor(totalMins / 60);
-            const mins = totalMins % 60;
-            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
-        }
-
-        // PDF EXPORT
-        function exportToPDF() {
-            const element = document.getElementById('printable-paddle');
-            const dutyNo = document.getElementById('duty-no').value || 'DutyCard';
-            const opt = {
-                margin:       0.3,
-                filename:     `OMSI2_${dutyNo}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2 },
-                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
-            };
-
-            html2pdf().set(opt).from(element).save();
-        }
-
-        // MODAL HELPERS
-        function openModal(id) {
-            document.getElementById(id).classList.remove('hidden');
-        }
-
-        function closeModal(id) {
-            document.getElementById(id).classList.add('hidden');
-        }
-    </script>
+    function exportToPDF() {
+      const element = document.getElementById('printable-driver-paddle');
+      const dutyId = document.getElementById('duty-id-input').value || 'DutyCard';
+      const opt = {
+        margin: 0.3,
+        filename: `ApexTransit_${dutyId}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+      html2pdf().set(opt).from(element).save();
+    }
+  </script>
 </body>
 </html>
